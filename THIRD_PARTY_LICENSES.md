@@ -12,6 +12,7 @@ these Python dependencies.
 | Pillow | MIT-CMU (HPND) | |
 | opencv-python-headless | Apache-2.0 (OpenCV 4.5+) | Binary wheels bundle third-party libraries under their own licenses (see the wheel's `LICENSE-3RD-PARTY.txt`). |
 | pytesseract (extra `tesseract`) | Apache-2.0 | |
+| onnxruntime (extra `onnx`) | MIT | Pinned `<1.29`: later builds include Microsoft 1DS telemetry (see docs/privacy.md). |
 | jsonschema (extra `validation`) | MIT | |
 
 ## Runtime dependencies: `khmerocr-api`
@@ -30,6 +31,7 @@ these Python dependencies.
 | --- | --- | --- |
 | Tesseract OCR engine | Apache-2.0 | Installed separately or in the Docker image. |
 | tessdata_fast language data (`khm`, `eng`) | Apache-2.0 | Distributed only inside model bundles, recorded in the bundle's `license_components`. |
+| seanghay/KhmerOCR `rec.onnx` and vocabulary | MIT (repository license; weights license to be confirmed with the author) | Distributed only inside hybrid model bundles. The vocabulary string is copied into `scripts/build_bundle.py` with attribution. The repository's `det.onnx` (AGPL-3.0, Ultralytics) is **not** used. |
 
 ## Development-only tools
 

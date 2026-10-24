@@ -28,7 +28,7 @@ def test_khmer_digits_are_converted() -> None:
 
 
 def test_normalize_text_removes_zero_width_and_collapses_spaces() -> None:
-    assert normalize_text("  គំរូ​  សាកល្បង \n") == "គំរូ សាកល្បង"
+    assert normalize_text("  គំរូ\u200b  សាកល្បង \n") == "គំរូ សាកល្បង"
 
 
 def test_strip_labels_handles_spacing_inside_label() -> None:

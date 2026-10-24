@@ -18,7 +18,7 @@ khmerocr-api = { workspace = true }
 
 [dependency-groups]
 dev = [
-    "khmerocr[tesseract,validation]",
+    "khmerocr[tesseract,onnx,validation]",
     "khmerocr-api",
     "pytest>=8",
     "hypothesis>=6.100",
@@ -27,9 +27,15 @@ dev = [
     "ruff>=0.6",
     "mypy>=1.11",
 ]
+# Recognizer training (training/). Not needed to use or develop the SDK.
+train = [
+    "torch>=2.4",
+    "fonttools>=4.50",
+    "onnxruntime>=1.17,<1.29",
+]
 
 [tool.pytest.ini_options]
-testpaths = ["packages/core-python/tests", "packages/api/tests", "tests"]
+testpaths = ["packages/core-python/tests", "packages/api/tests", "tests", "training/tests"]
 addopts = "-ra --import-mode=importlib"
 markers = [
     "tesseract: requires the tesseract binary and Khmer language data",
@@ -38,7 +44,7 @@ markers = [
 [tool.ruff]
 line-length = 100
 target-version = "py310"
-extend-exclude = [".venv"]
+extend-exclude = [".venv", "training/data"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "S", "RUF"]
@@ -48,6 +54,7 @@ ignore = ["S101", "RUF001", "RUF002", "RUF003"]
 "**/tests/**" = ["S", "B"]
 "tests/**" = ["S", "B"]
 "benchmarks/**" = ["S"]
+"training/**" = ["S"]
 
 [tool.mypy]
 python_version = "3.10"

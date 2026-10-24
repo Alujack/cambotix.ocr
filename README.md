@@ -40,6 +40,11 @@ print(result.fields["id_number"].value)
 print(result.review_required)
 ```
 
+The best current configuration is a **hybrid bundle**. Khmer text is read
+by the [seanghay/KhmerOCR](https://github.com/seanghay/KhmerOCR) recognizer
+(93% exact on synthetic Khmer names, against 58% for Tesseract); Latin text
+and digits are read by Tesseract. See [model licensing](docs/model-licensing.md).
+
 Field mapping is deterministic. No language model guesses or completes
 identity fields.
 

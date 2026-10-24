@@ -1,0 +1,70 @@
+# Training the KhmerOCR line recognizer
+
+This directory trains our own text-line recognizer, which ships as
+`rec.onnx` in a model bundle and runs in the SDK's `onnx-ctc` backend. It is
+not part of the installed SDK.
+
+## Why our own model
+
+- **One model for the whole card.** The vocabulary covers Khmer, Latin
+  letters, ASCII digits, space, and common punctuation, so bilingual lines
+  (`ប្រុស / Male`) and numbers do not need a second engine.
+- **Clean licensing.** Training uses only OFL fonts pinned to one
+  `google/fonts` commit, plus CC BY-SA Wikipedia text rendered into images.
+  No third-party model weights are involved.
+- **Matched to ID cards.** Synthetic lines include card labels, names,
+  dates, ID numbers, and addresses on card-like backgrounds with photo
+  artifacts.
+
+## Pipeline
+
+| Step | Code | Notes |
+| --- | --- | --- |
+| Fonts | `fetch_fonts.py`, `fonts.json` | 40 OFL fonts (29 Khmer, 11 Latin) at a pinned commit; checksums in `data/fonts/fonts.lock.json`. 4 fonts are **holdout**: never trained on, used to measure generalization. |
+| Text | `fetch_corpus.py`, `khmer_rec/textgen.py` | Khmer Wikipedia intros plus synthetic ID content. All names and numbers are fake. Spans never split a Khmer cluster. |
+| Rendering | `khmer_rec/render.py` | Khmer and Latin runs drawn with matching fonts (libraqm shaping), card-like backgrounds, bounded blur, low resolution, noise, JPEG, glare. Uses the SDK's own `trim_to_ink` crop, so training matches inference. |
+| Model | `khmer_rec/model.py` | CRNN: six 3×3 convolutions (with batch norm) + 2× BiLSTM(256) + CTC. 3.85 M parameters. |
+| Training | `khmer_rec/train.py` | Streaming data (nothing stored on disk), width-bucketed batches, AdamW + cosine schedule. The best checkpoint is chosen on the holdout fonts. |
+| Export | `khmer_rec/export.py` | ONNX opset 17, dynamic width; verified against PyTorch with ONNX Runtime. Writes `tokens.txt` and `model_card.json`. |
+| Compare | `khmer_rec/compare.py` | Scores ONNX models on holdout-font lines through the SDK's own inference code. |
+
+## Run it
+
+```bash
+uv sync --group train                       # torch, fonttools, onnxruntime<1.29
+python training/fetch_fonts.py              # ~12 MB of OFL fonts
+python training/fetch_corpus.py --requests 120
+python -m training.khmer_rec.train --run-name poc --minutes 90 --steps 25000
+python -m training.khmer_rec.export --run-name poc
+python -m training.khmer_rec.compare --ours training/data/runs/poc
+```
+
+Package the result for the SDK. The `--onnx-scripts` option routes every
+region to the model, with Tesseract as the fallback:
+
+```bash
+python scripts/build_bundle.py --model-id khmerocr-id-own \
+  --traineddata khm.traineddata eng.traineddata \
+  --source-url https://github.com/tesseract-ocr/tessdata_fast/tree/4.1.0 \
+  --khmer-onnx training/data/runs/poc/rec.onnx \
+  --khmer-onnx-tokens training/data/runs/poc/tokens.txt \
+  --khmer-onnx-token-offset 1 --khmer-onnx-license Apache-2.0 \
+  --khmer-onnx-source-url "internal: training run poc" \
+  --onnx-scripts khmer,latin,digits,mixed \
+  --out dist/models/khmerocr-id-own
+```
+
+## Hardware
+
+An Apple M1 Pro (MPS) trains at about 200–250 lines/s, roughly 1 M lines per
+hour. A full model needs several million lines, so plan on hours on a
+laptop, or roughly one hour on a single CUDA GPU.
+
+## Data rules
+
+- Never add real ID images or real people's names to training text. The
+  synthetic name lists are composites of common names.
+- Fine-tuning on real, authorized ID crops must happen in the restricted
+  evaluation environment, and the resulting weights carry those data
+  obligations.
+- `training/data/` (fonts, corpus, checkpoints) is git-ignored.

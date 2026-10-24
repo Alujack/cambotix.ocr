@@ -9,8 +9,8 @@ KHMER_DIGITS = "០១២៣៤៥៦៧៨៩"
 _DIGIT_TABLE = str.maketrans(KHMER_DIGITS, "0123456789")
 
 # Khmer (U+1780-U+17FF) and Khmer Symbols (U+19E0-U+19FF).
-_KHMER_CHAR = re.compile(r"[ក-៿᧠-᧿]")
-_ZERO_WIDTH = re.compile(r"[​‌‍⁠﻿]")
+_KHMER_CHAR = re.compile(r"[\u1780-\u17FF\u19E0-\u19FF]")
+_ZERO_WIDTH = re.compile(r"[\u200b\u200c\u200d\u2060\ufeff]")
 _WHITESPACE = re.compile(r"\s+")
 
 
@@ -43,6 +43,10 @@ def strip_labels(text: str, labels: list[str]) -> str:
     compact = text.replace(" ", "")
     for label in sorted(labels, key=len, reverse=True):
         label_compact = normalize_text(label).replace(" ", "")
+        # Text that is only (part of) the printed label, e.g. when glare hides
+        # the value, must not be returned as the value itself.
+        if compact and label_compact.startswith(compact.rstrip(":：-ៈ")):
+            return ""
         if label_compact and compact.startswith(label_compact):
             # Walk the original string until the label's characters are consumed.
             consumed, i = 0, 0
@@ -50,5 +54,6 @@ def strip_labels(text: str, labels: list[str]) -> str:
                 if text[i] != " ":
                     consumed += 1
                 i += 1
-            return text[i:].lstrip(" :：-").strip()
+            # "ៈ" (U+17C8) is how Khmer recognizers often read a printed ":".
+            return text[i:].lstrip(" :：-ៈ").strip()
     return text

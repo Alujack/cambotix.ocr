@@ -17,6 +17,9 @@ dependencies = [
 
 [project.optional-dependencies]
 tesseract = ["pytesseract>=0.3.10"]
+# onnxruntime 1.29+ ships 1DS telemetry that contacts mobile.events.data.microsoft.com
+# even when disabled; see docs/privacy.md before raising this bound.
+onnx = ["onnxruntime>=1.17,<1.29"]
 validation = ["jsonschema>=4.22"]
 
 [project.scripts]

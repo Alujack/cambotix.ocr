@@ -65,4 +65,55 @@ def _tesseract_factory(model_dir: Path, options: Mapping[str, Any]) -> Recognize
     )
 
 
+def _bundle_path(model_dir: Path, relative: object) -> Path:
+    path = (model_dir / str(relative)).resolve()
+    if not path.is_relative_to(model_dir.resolve()):
+        raise ModelNotAvailableError("Model files must be inside the model bundle.")
+    return path
+
+
+def _onnx_ctc_factory(model_dir: Path, options: Mapping[str, Any]) -> Recognizer:
+    from .onnx_ctc import OnnxCtcRecognizer
+
+    tokens_path = _bundle_path(model_dir, options.get("tokens_file", "tokens.txt"))
+    try:
+        tokens = tokens_path.read_text(encoding="utf-8").rstrip("\n")
+    except OSError as exc:
+        raise ModelNotAvailableError("The recognizer vocabulary file is missing.") from exc
+    return OnnxCtcRecognizer(
+        model_path=_bundle_path(model_dir, options.get("model", "rec.onnx")),
+        tokens=tokens,
+        token_offset=int(options.get("token_offset", 3)),
+        input_height=int(options.get("input_height", 32)),
+        restore_spaces=bool(options.get("restore_spaces", True)),
+    )
+
+
+def _router_factory(model_dir: Path, options: Mapping[str, Any]) -> Recognizer:
+    from .routing import ScriptRouter
+
+    backends: dict[str, Recognizer] = {}
+    try:
+        for name, spec in dict(options["backends"]).items():
+            if spec["backend"] == "router":
+                raise ModelNotAvailableError("Routers cannot be nested.")
+            backends[name] = create_recognizer(str(spec["backend"]), model_dir,
+                                               dict(spec.get("options", {})))
+        return ScriptRouter(backends, dict(options.get("routes", {})),
+                            default=str(options["default"]), page=options.get("page"))
+    except (KeyError, TypeError, ValueError) as exc:
+        _close_all(backends)
+        raise ModelNotAvailableError("The recognizer routing configuration is invalid.") from exc
+    except Exception:
+        _close_all(backends)
+        raise
+
+
+def _close_all(backends: Mapping[str, Recognizer]) -> None:
+    for backend in backends.values():
+        backend.close()
+
+
 register_recognizer("tesseract", _tesseract_factory)
+register_recognizer("onnx-ctc", _onnx_ctc_factory)
+register_recognizer("router", _router_factory)

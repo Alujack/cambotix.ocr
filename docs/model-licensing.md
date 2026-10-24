@@ -9,7 +9,9 @@ component that ships in a model bundle is audited separately.
 | Candidate | Status | Notes |
 | --- | --- | --- |
 | Tesseract + `tessdata_fast` (`khm`, `eng`) | Implemented (`tesseract` backend). Development baseline only. | Engine and tessdata are published under Apache-2.0. Confirm for the exact release you bundle. |
-| Netra-OCR | To benchmark (week 1) | Khmer-English recognizer designed for local inference. The repository lists MIT, but the full application identifies AGPL-licensed components, and the published V2 checkpoint is described by its authors as an unfinished training snapshot. Audit weights, vocabulary, and each dependency separately. |
+| seanghay/KhmerOCR `rec.onnx` | **Implemented** (`onnx-ctc` backend, routed to Khmer-script regions). Pending written license confirmation. | CTC line recognizer, Khmer-only vocabulary (no Latin, ASCII digits, space, or comma). Repository is MIT (© 2026 Seanghay Yath); confirm the weights license and the training-font provenance with the author. |
+| seanghay/KhmerOCR `det.onnx` | **Rejected** | Ultralytics YOLO11n. Its embedded ONNX metadata declares `AGPL-3.0`. Not needed: ID templates already locate fields. |
+| Netra-OCR | To benchmark | Khmer-English recognizer designed for local inference. The repository lists MIT, but the full application identifies AGPL-licensed components, and the published V2 checkpoint is described by its authors as an unfinished training snapshot. Audit weights, vocabulary, and each dependency separately. |
 | PaddleOCR | To evaluate | Toolkit code is Apache-2.0. Khmer recognition coverage and model-weight licenses must be checked for the exact release. |
 
 New backends plug in through the `khmerocr.recognizers` entry-point group
@@ -48,6 +50,41 @@ bundle digest matches the registry.
 Approval is a human decision: set `license_approved: true` and
 `license_approved_by` only after reviewing every entry in
 `license_components`.
+
+## Hybrid recognizer (current best)
+
+Bundle `recognizer.backend = "router"`:
+
+- **Khmer-script regions:** seanghay `rec.onnx` first. If its read fails field
+  validation, Tesseract reads the region instead (`fallback_recognizer:<field>`
+  warning).
+- **Latin, digit, and mixed regions:** Tesseract only. The Khmer model must
+  never see these: on a real card it read `04/02/2002` as Khmer digits
+  `០៨០២១២០០២` with 0.94 confidence.
+
+The Khmer model has no space token. Word spaces are restored from wide blank
+gaps in the line image.
+
+Synthetic set (60 cards, same images and crops, Docker, networking disabled):
+
+| Field | Tesseract only | Hybrid |
+| --- | --- | --- |
+| full_name_km (exact, including spaces) | 58.3% | **93.3%** |
+| Cards with all fields exact, non-glare categories (50 cards) | 33/50 | **50/50** |
+| Glare category, all fields exact | 0/10 | 1/10 |
+
+Recognizer-only comparison on identical tight Khmer-name crops: seanghay 93.3%
+vs Tesseract 51.7% (ignoring spaces); 17 ms vs 60 ms per line.
+
+### onnxruntime telemetry
+
+onnxruntime **1.29.0 and later** (tested 1.29, 1.30, 1.31 on Linux) resolve
+`mobile.events.data.microsoft.com` for 1DS telemetry, even with
+`ORT_DISABLE_TELEMETRY=1` and `onnxruntime.disable_telemetry_events()`.
+Versions 1.20–1.28 made no network calls in the same test. The `onnx` extra is
+pinned to `onnxruntime<1.29`, and the backend refuses to load newer versions.
+`scripts/check_egress.sh` verifies this at the system-call level in CI.
+Python socket mocks cannot see native code, so they would not have caught it.
 
 ## Baseline result (synthetic data, Tesseract)
 

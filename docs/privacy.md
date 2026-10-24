@@ -9,6 +9,7 @@ itself.
 | Commitment | How it is enforced |
 | --- | --- |
 | No network access during inference | The core package contains no HTTP client code. `tests/security/test_offline.py` blocks sockets and DNS during extraction and API calls. `tests/security/test_core_isolation.py` checks that the core never imports FastAPI or HTTP clients. |
+| No native-library telemetry | onnxruntime ≥ 1.29 contacts Microsoft telemetry endpoints even when told not to, so the `onnx` extra pins `<1.29` and the backend refuses newer versions. `scripts/check_egress.sh` runs the engine under `strace` in CI and fails on any IPv4/IPv6 connection or DNS query. |
 | No silent model downloads | Bundles are installed only from a local path (`khmerocr models install --from`). A missing model raises `MODEL_NOT_AVAILABLE`. |
 | Model integrity | Every bundle file is checked against its manifest SHA-256 before loading. |
 | No document content in logs | The engine logs step names, error codes, counts, and timings only. Exception messages, which may echo text, are never logged. `tests/security/test_no_pii_in_logs.py` checks this at DEBUG level, including on failure paths. |

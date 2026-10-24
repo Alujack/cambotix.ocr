@@ -23,6 +23,19 @@ jobs:
       - name: Tests (unit, API, security, schema compatibility)
         run: uv run pytest
 
+  training-pipeline:
+    # Fast checks of the recognizer training code (no real training run).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e "packages/core-python[onnx]" pytest fonttools
+      - run: pip install torch --index-url https://download.pytorch.org/whl/cpu
+      - run: python training/fetch_fonts.py
+      - run: pytest training/tests -p no:cacheprovider
+
   core-without-api:
     # The engine must install and work without the API package.
     runs-on: ubuntu-latest
@@ -43,22 +56,35 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install -e "packages/core-python[tesseract]"
-      - name: Fetch pinned language data (build time only)
+      - run: pip install -e "packages/core-python[tesseract,onnx]"
+      - name: Fetch pinned model files (build time only)
         run: |
           mkdir -p /tmp/tessdata
           for lang in khm eng; do
             curl -sSfL -o /tmp/tessdata/$lang.traineddata \
               https://github.com/tesseract-ocr/tessdata_fast/raw/4.1.0/$lang.traineddata
           done
-      - name: Build bundle
+          curl -sSfL -o /tmp/rec.onnx \
+            https://github.com/seanghay/KhmerOCR/raw/68c2c72/khmerocr/rec.onnx
+      - name: Build bundles
         run: |
-          python scripts/build_tesseract_bundle.py --model-id khmerocr-id-dev \
+          python scripts/build_bundle.py --model-id khmerocr-id-dev \
             --traineddata /tmp/tessdata/khm.traineddata /tmp/tessdata/eng.traineddata \
             --source-url https://github.com/tesseract-ocr/tessdata_fast/tree/4.1.0 \
             --out /tmp/bundle
+          python scripts/build_bundle.py --model-id khmerocr-id-hybrid \
+            --traineddata /tmp/tessdata/khm.traineddata /tmp/tessdata/eng.traineddata \
+            --source-url https://github.com/tesseract-ocr/tessdata_fast/tree/4.1.0 \
+            --khmer-onnx /tmp/rec.onnx \
+            --khmer-onnx-source-url https://github.com/seanghay/KhmerOCR/tree/68c2c72 \
+            --out /tmp/bundle-hybrid
       - run: python benchmarks/generate_synthetic.py --out /tmp/synthetic --count 30
       - run: docker build -f docker/Dockerfile -t khmerocr-api:ci .
+      - name: Egress check (system-call level, hybrid engine)
+        run: |
+          sudo apt-get update && sudo apt-get install -y strace tesseract-ocr
+          scripts/check_egress.sh python benchmarks/evaluate.py \
+            --dataset /tmp/synthetic --model /tmp/bundle-hybrid --out /tmp/reports-egress
       - name: Benchmark with networking disabled
         run: |
           docker run --rm --network none \

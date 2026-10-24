@@ -25,7 +25,7 @@ from .text import contains_khmer, normalize_text, to_ascii_digits
 _DIGIT_CONFUSIONS = str.maketrans({"O": "0", "o": "0", "D": "0", "I": "1", "l": "1",
                                    "|": "1", "S": "5", "B": "8", "Z": "2"})
 _LATIN_NAME = re.compile(r"^[A-Z][A-Z' -]*[A-Z]$")
-_NON_KHMER_NAME = re.compile(r"[^ក-៿᧠-᧿ ]")
+_NON_KHMER_NAME = re.compile(r"[^\u1780-\u17FF\u19E0-\u19FF ]")
 
 
 @dataclass

@@ -7,6 +7,7 @@ No language model is used to guess or complete identity fields.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 
 from ..config import EngineConfig
@@ -15,7 +16,7 @@ from ..preprocessing.geometry import normalize_card, rotate_quarter_turns
 from ..preprocessing.io import ImageArray
 from ..recognition.base import RecognizedText, Recognizer
 from ..schemas import BoundingBox, ExtractedField, OCRResult, QualityReport, Status, TextRegion
-from ..validation.fields import NORMALIZERS
+from ..validation.fields import NORMALIZERS, Normalized
 from ..validation.text import normalize_text, strip_labels
 from .layout import DocumentTemplate, FieldSpec
 
@@ -119,34 +120,56 @@ class TemplateExtractor:
         result = _Pass(quarter_turns=quarter_turns)
         padding = (self.template.padding if self.template.padding is not None
                    else self.config.region_padding)
-        # Fields that share a region (e.g. "Khmer / English" on one line) are
-        # recognized once.
-        cache: dict[tuple[object, ...], RecognizedText] = {}
+        # Fields that share a region (e.g. "Khmer / English" on one line) reuse
+        # the same reads.
+        reads_by_region: dict[tuple[object, ...], _RegionReads] = {}
         for spec in self.template.fields:
             key = (spec.box, spec.script, spec.languages, spec.char_whitelist)
             bbox = _pixel_box(spec, card.shape[1], card.shape[0], padding)
-            if key not in cache:
+            reads = reads_by_region.get(key)
+            first_use = reads is None
+            if reads is None:
                 crop = card[bbox.y:bbox.y + bbox.height, bbox.x:bbox.x + bbox.width]
-                recognized = self.recognizer.recognize_line(crop, spec.hint())
-                cache[key] = recognized
+                reads = _RegionReads(self.recognizer.recognize_candidates(crop, spec.hint()))
+                reads_by_region[key] = reads
+            field, recognized = self._map_field(spec, reads, result)
+            result.fields[spec.name] = field
+            if first_use:
                 result.regions.append(TextRegion(text=normalize_text(recognized.text),
                                                  confidence=recognized.confidence,
                                                  bbox=bbox, label=spec.name))
-            recognized = cache[key]
-            raw = _select_part(normalize_text(recognized.text), spec)
-            result.fields[spec.name] = self._map_field(spec, raw, recognized.confidence, result)
         return result
 
-    def _map_field(self, spec: FieldSpec, raw: str, confidence: float | None,
-                   result: _Pass) -> ExtractedField:
+    def _map_field(self, spec: FieldSpec, reads: _RegionReads,
+                   result: _Pass) -> tuple[ExtractedField, RecognizedText]:
+        """Map the first candidate read whose value validates; if none does,
+        fall back to the primary read so its problems are reported."""
         name = spec.name
-        if not raw:
+        chosen: tuple[int, RecognizedText, str, Normalized | None] | None = None
+        primary: tuple[int, RecognizedText, str, Normalized | None] | None = None
+        index = 0
+        while (recognized := reads.get(index)) is not None:
+            raw = _select_part(normalize_text(recognized.text), spec)
+            normalized = (NORMALIZERS[spec.type](strip_labels(raw, list(spec.labels)),
+                                                 spec.options()) if raw else None)
+            if primary is None:
+                primary = (index, recognized, raw, normalized)
+            if normalized is not None and normalized.valid:
+                chosen = (index, recognized, raw, normalized)
+                break
+            index += 1
+        assert primary is not None
+        used, recognized, raw, maybe_normalized = chosen or primary
+        if used:
+            result.warnings.append(f"fallback_recognizer:{name}")
+        confidence = recognized.confidence
+        if not raw or maybe_normalized is None:
             result.warnings.append(f"field_not_detected:{name}")
             if spec.critical:
                 result.needs_review.add(name)
-            return ExtractedField(None, None, spec.source, valid=False)
+            return ExtractedField(None, None, spec.source, valid=False), recognized
 
-        normalized = NORMALIZERS[spec.type](strip_labels(raw, list(spec.labels)), spec.options())
+        normalized = maybe_normalized
         result.warnings.extend(f"{code}:{name}" for code in normalized.warnings)
         if normalized.value is None:
             result.warnings.append(f"field_unreadable:{name}")
@@ -163,7 +186,23 @@ class TemplateExtractor:
             result.needs_review.add(name)
 
         return ExtractedField(normalized.value, confidence, spec.source,
-                              valid=normalized.valid, raw_text=raw)
+                              valid=normalized.valid, raw_text=raw), recognized
+
+
+class _RegionReads:
+    """Lazily evaluated candidate reads of one region, shared between fields."""
+
+    def __init__(self, candidates: Iterator[RecognizedText]) -> None:
+        self._candidates = candidates
+        self._reads: list[RecognizedText] = []
+
+    def get(self, index: int) -> RecognizedText | None:
+        while len(self._reads) <= index:
+            next_read = next(self._candidates, None)
+            if next_read is None:
+                return None
+            self._reads.append(next_read)
+        return self._reads[index]
 
 
 def _select_part(text: str, spec: FieldSpec) -> str:

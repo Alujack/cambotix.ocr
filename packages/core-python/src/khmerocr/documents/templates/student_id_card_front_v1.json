@@ -71,7 +71,7 @@
       "name": "address_km",
       "type": "text",
       "box": [0.345, 0.397, 0.64, 0.041],
-      "script": "khmer",
+      "script": "mixed",
       "languages": "khm",
       "critical": false,
       "source": "front_region"

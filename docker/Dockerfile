@@ -20,7 +20,7 @@ RUN apt-get update \
 WORKDIR /src
 COPY packages/core-python /src/packages/core-python
 COPY packages/api /src/packages/api
-RUN pip install --no-cache-dir "/src/packages/core-python[tesseract,validation]" /src/packages/api \
+RUN pip install --no-cache-dir "/src/packages/core-python[tesseract,onnx,validation]" /src/packages/api \
  && rm -rf /src
 
 RUN useradd --system --uid 10001 --home-dir /nonexistent khmerocr \

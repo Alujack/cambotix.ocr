@@ -40,12 +40,26 @@ Tesseract is the only backend bundled so far. It is the reference baseline
 for the week-1 benchmark, not a decision that it is the production model.
 
 ```bash
-python scripts/build_tesseract_bundle.py \
+python scripts/build_bundle.py \
   --model-id khmerocr-id-dev \
   --traineddata /path/to/khm.traineddata /path/to/eng.traineddata \
   --source-url https://github.com/tesseract-ocr/tessdata_fast \
   --out dist/models/khmerocr-id-dev
 ```
+
+## Building the hybrid bundle (Khmer ONNX + Tesseract)
+
+```bash
+python scripts/build_bundle.py --model-id khmerocr-id-hybrid \
+  --traineddata /path/to/khm.traineddata /path/to/eng.traineddata \
+  --source-url https://github.com/tesseract-ocr/tessdata_fast/tree/4.1.0 \
+  --khmer-onnx /path/to/seanghay/KhmerOCR/khmerocr/rec.onnx \
+  --khmer-onnx-source-url https://github.com/seanghay/KhmerOCR/tree/68c2c72 \
+  --out dist/models/khmerocr-id-hybrid
+```
+
+Khmer-script regions go to `rec.onnx`, with Tesseract as the fallback; all
+other regions go to Tesseract. Requires `khmerocr[tesseract,onnx]`.
 
 ## Adding another recognizer (e.g. Netra-OCR, PaddleOCR)
 

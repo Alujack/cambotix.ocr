@@ -22,3 +22,6 @@ benchmarks/reports/*
 # Never commit real ID images.
 *.heic
 tests/fixtures/real/
+
+# Training artifacts: fonts, corpora, checkpoints, exports.
+training/data/

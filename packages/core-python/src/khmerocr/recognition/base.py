@@ -9,6 +9,7 @@ bundle directory and must never download weights or call remote services.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import Literal
 
@@ -46,6 +47,12 @@ class Recognizer(ABC):
     @abstractmethod
     def recognize_line(self, image: ImageArray, hint: RegionHint | None = None) -> RecognizedText:
         """Recognize a single text line or field crop."""
+
+    def recognize_candidates(self, image: ImageArray,
+                             hint: RegionHint | None = None) -> Iterator[RecognizedText]:
+        """Yield reads in order of preference. Callers stop as soon as a read
+        validates, so later candidates are only computed when needed."""
+        yield self.recognize_line(image, hint)
 
     def recognize_page(self, image: ImageArray) -> list[TextRegion]:
         """Recognize all text on a page. Backends with native layout analysis
