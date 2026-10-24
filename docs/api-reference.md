@@ -13,6 +13,7 @@ them before sending it. A future hosted API will implement the same contract.
 | `GET` | `/models` | Active model and installed bundles | — |
 | `POST` | `/ocr` | General Khmer/English text recognition | `ocr-result.schema.json` |
 | `POST` | `/documents/national-id/extract` | National ID field extraction | `national-id.schema.json` |
+| `POST` | `/documents/student-id/extract` | Student ID card extraction (provisional layout) | `document-result.schema.json` |
 | `POST` | `/documents/quality-check` | Image usability check | `quality-report.schema.json` |
 | `GET` | `/openapi.json` | OpenAPI specification | — |
 
@@ -27,7 +28,7 @@ them before sending it. A future hosted API will implement the same contract.
   while the body streams in, before it is buffered.
 - Decoded images are limited to 40 megapixels.
 
-`/documents/national-id/extract` also accepts `include_text_regions`
+The `/extract` endpoints also accept `include_text_regions`
 (`true`/`false`, default `false`). When it is `true`, the response includes
 the raw recognized text of every template region.
 
@@ -66,6 +67,17 @@ Field semantics:
 - `valid`: whether the value passed format validation for its type.
 - `status`: `success` (no review needed), `review_required`, or `failed`
   (no field could be read).
+
+### Student ID cards
+
+`/documents/student-id/extract` returns the same structure with
+`document_type: "student_id_card"` and the fields `full_name_km`,
+`full_name_latin`, `gender`, `date_of_birth`, `department`, `degree`,
+`address_km`, `student_id`, and `issue_date`. The layout was measured from one
+real university card design and is unverified, so results always require
+review. Bilingual lines (`Khmer / English`) are split on `/`; if the separator
+is not recognized, both sides are returned as not detected rather than
+guessed.
 
 ### Warning codes
 

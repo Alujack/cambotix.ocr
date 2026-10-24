@@ -163,3 +163,17 @@ def test_unexpected_failure_is_opaque(card_png: bytes) -> None:
         body = _assert_error(client.post(EXTRACT, files=_upload(card_png)),
                              500, "INFERENCE_FAILED")
         assert "secret" not in body["error"]["message"]
+
+
+def test_extract_student_id(card_png: bytes) -> None:
+    responses = {"full_name_km": ("គំរូ សាកល្បង / KUMRU SAKALBANG", 0.93),
+                 "student_id": ("000000002", 0.9)}
+    app = create_app(settings=SMALL_LIMIT_SETTINGS.__class__(model="unused"),
+                     engine=KhmerOCR(ScriptedRecognizer(responses)))
+    with TestClient(app) as client:
+        response = client.post("/v1/documents/student-id/extract", files=_upload(card_png))
+    assert response.status_code == 200, response.text
+    body = response.json()
+    contracts.validate(body, "document")
+    assert body["document_type"] == "student_id_card"
+    assert body["fields"]["full_name_latin"]["value"] == "KUMRU SAKALBANG"

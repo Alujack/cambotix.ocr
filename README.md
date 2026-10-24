@@ -17,6 +17,9 @@ dependency, no API fees, and no document data leaves the machine.
   normalizes and validates the values (ISO dates, Khmer digits, names,
   gender), and returns typed results with confidence, warnings, and a
   human-review flag.
+- **Other card types:** `ocr.extract_id(image, document_type="student_id_card")`
+  uses the same pipeline with a different layout template. Templates are JSON
+  files, so adding a card design does not require code changes.
 - **`ocr.recognize(image)`**: general Khmer/English text recognition.
 - **`ocr.check_image(image)`**: blur, glare, exposure, size, and orientation
   checks.

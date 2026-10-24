@@ -29,6 +29,14 @@ from .base import RecognizedText, Recognizer, RegionHint
 
 _SCRIPT_LANGUAGES = {"khmer": "khm", "latin": "eng", "digits": "eng", "mixed": "khm+eng"}
 _MIN_LINE_HEIGHT = 48
+# Retry ladder for a line crop: (preprocessing, page segmentation mode).
+# psm 7 (single line) fails on short, widely spaced text such as numbers
+# under a barcode, where psm 8 (single word) succeeds; Otsu binarization
+# recovers text printed over patterned backgrounds.
+_LINE_ATTEMPTS = (("gray", 7), ("otsu", 7))
+_DIGIT_ATTEMPTS = (("gray", 7), ("otsu", 7), ("gray", 8))
+# Stop retrying once a read reaches this confidence.
+_ACCEPT_CONFIDENCE = 0.85
 
 
 class TesseractRecognizer(Recognizer):
@@ -69,18 +77,18 @@ class TesseractRecognizer(Recognizer):
     def recognize_line(self, image: ImageArray, hint: RegionHint | None = None) -> RecognizedText:
         hint = hint or RegionHint()
         languages = hint.languages or _SCRIPT_LANGUAGES.get(hint.script, self.default_languages)
-        data = self._image_to_data(_prepare_line(image), languages, psm=7,
-                                   whitelist=hint.char_whitelist)
-        words, confidences = [], []
-        for text, conf in zip(data["text"], data["conf"], strict=True):
-            text = str(text).strip()
-            conf = float(conf)
-            if text and conf >= 0:
-                words.append(text)
-                confidences.append(conf / 100.0)
-        if not words:
-            return RecognizedText(text="", confidence=None)
-        return RecognizedText(text=" ".join(words), confidence=float(np.mean(confidences)))
+        attempts = _DIGIT_ATTEMPTS if hint.script == "digits" else _LINE_ATTEMPTS
+        best = RecognizedText(text="", confidence=None)
+        for mode, psm in attempts:
+            data = self._image_to_data(_prepare_line(image, mode), languages, psm=psm,
+                                       whitelist=hint.char_whitelist)
+            result = _join_words(data)
+            if result.text and (best.confidence is None
+                                or (result.confidence or 0.0) > best.confidence):
+                best = result
+            if best.confidence is not None and best.confidence >= _ACCEPT_CONFIDENCE:
+                break
+        return best
 
     def recognize_page(self, image: ImageArray) -> list[TextRegion]:
         data = self._image_to_data(image, self.default_languages, psm=3, whitelist=None)
@@ -117,11 +125,26 @@ class TesseractRecognizer(Recognizer):
         return result
 
 
-def _prepare_line(image: ImageArray) -> ImageArray:
+def _join_words(data: dict[str, list[Any]]) -> RecognizedText:
+    words, confidences = [], []
+    for text, conf in zip(data["text"], data["conf"], strict=True):
+        text = str(text).strip()
+        if text and float(conf) >= 0:
+            words.append(text)
+            confidences.append(float(conf) / 100.0)
+    if not words:
+        return RecognizedText(text="", confidence=None)
+    return RecognizedText(text=" ".join(words), confidence=float(np.mean(confidences)))
+
+
+def _prepare_line(image: ImageArray, mode: str = "gray") -> ImageArray:
     gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
-    if gray.shape[0] < _MIN_LINE_HEIGHT:
-        scale = _MIN_LINE_HEIGHT / max(1, gray.shape[0])
+    height = max(1, gray.shape[0])
+    scale = max(3.0, _MIN_LINE_HEIGHT / height) if mode == "otsu" else _MIN_LINE_HEIGHT / height
+    if scale > 1:
         gray = cv2.resize(gray, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
+    if mode == "otsu":
+        _, gray = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
     # A white border helps Tesseract's line finder on tight crops.
     gray = cv2.copyMakeBorder(gray, 10, 10, 10, 10, cv2.BORDER_CONSTANT, value=255)
     return np.asarray(cv2.cvtColor(gray, cv2.COLOR_GRAY2RGB), dtype=np.uint8)

@@ -73,6 +73,7 @@ Command line:
 ```bash
 khmerocr check national-id.jpg
 khmerocr extract-id national-id.jpg --model khmerocr-id-v1
+khmerocr extract-id student-card.jpg --document-type student_id_card
 khmerocr recognize letter.png
 ```
 

@@ -60,9 +60,31 @@ Tesseract 5.5.0 in Docker with networking disabled.
 | gender | 100% | 94.0–100% |
 | date_of_birth | 91.7% | 81.9–96.4% |
 | full_name_latin | 86.7% | 75.8–93.1% |
-| full_name_km | 63.3% | 50.7–74.4% (mean CER 0.126) |
+| full_name_km | 58.3% | 45.7–69.9% (mean CER 0.129) |
 
 These are pipeline sanity numbers on rendered text with the provisional
 layout. They are not evidence about real cards. The baseline fails the
 release gate, and Khmer name recognition is the clearest gap for the
-candidate models to close.
+candidate models to close. (Khmer names were 63.3% before the Otsu retry
+was added to the Tesseract backend. That retry fixed real-card failures but
+sometimes prefers a more confident wrong read.)
+
+### First real card (2026-10-24)
+
+One real student ID card, a clean digital scan provided with the holder's
+consent and kept outside Git. Six scored fields (Khmer name, Latin name,
+gender, date of birth, student number, issue date): 6/6 exact after two
+fixes this card exposed:
+
+- The glare check flagged the card's printed white background as severe
+  glare and rejected the image. Glare now requires a soft bright halo around
+  the clipped region.
+- Tesseract's single-line mode returned nothing for the widely spaced number
+  under the barcode, and nothing for the date printed over a patterned
+  background. The backend now retries with Otsu binarization and, for digit
+  fields, single-word mode.
+
+Remaining errors on unscored lines: one Khmer consonant substitution in the
+department name and stray characters after "Bachelor". Both were flagged as
+low confidence. One sample says nothing about accuracy; it only shows that
+the pipeline works on a real card.

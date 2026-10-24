@@ -44,3 +44,18 @@ def test_reads_digits_with_whitelist(recognizer) -> None:
 def test_page_recognition_returns_regions(recognizer) -> None:
     regions = recognizer.recognize_page(render_card())
     assert any("SPECIMEN" in r.text for r in regions)
+
+
+def test_spaced_digits_use_single_word_fallback(recognizer) -> None:
+    import numpy as np
+    from khmerocr.testing.synthetic import _LATIN_FONT_CANDIDATES, find_font
+    from PIL import Image, ImageDraw, ImageFont
+
+    font_path = find_font(_LATIN_FONT_CANDIDATES)
+    font = ImageFont.truetype(font_path, 18) if font_path else ImageFont.load_default(18)
+    canvas = Image.new("RGB", (160, 30), (235, 235, 235))
+    ImageDraw.Draw(canvas).text((8, 5), "000000002", fill=(30, 30, 30), font=font,
+                                spacing=4)
+    hint = RegionHint(script="digits", languages="eng", char_whitelist="0123456789")
+    result = recognizer.recognize_line(np.asarray(canvas), hint)
+    assert result.text.replace(" ", "") == "000000002"

@@ -65,6 +65,9 @@ class TemplateExtractor:
                                         (card.quarter_turns + extra_turns) % 4)
             if best is None or attempt.score(critical) > best.score(critical):
                 best = attempt
+            # Any field needing review triggers the 180-degree pass. Cheaper
+            # heuristics (e.g. "half the critical fields are valid") fail
+            # because upside-down garbage can pass weak format checks.
             if not attempt.needs_review:
                 break
         assert best is not None
