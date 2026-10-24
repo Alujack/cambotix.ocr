@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://khmerocr.dev/schemas/1.0/error.schema.json",
+  "title": "KhmerOCR Error Response",
+  "type": "object",
+  "required": ["error"],
+  "properties": {
+    "error": {
+      "type": "object",
+      "required": ["code", "message"],
+      "properties": {
+        "code": {
+          "type": "string",
+          "examples": [
+            "INVALID_IMAGE",
+            "UNSUPPORTED_DOCUMENT",
+            "MODEL_NOT_AVAILABLE",
+            "IMAGE_QUALITY_TOO_LOW",
+            "INFERENCE_FAILED",
+            "UNSUPPORTED_MEDIA_TYPE",
+            "PAYLOAD_TOO_LARGE",
+            "INVALID_REQUEST",
+            "NOT_FOUND",
+            "INTERNAL_ERROR"
+          ]
+        },
+        "message": {"type": "string"},
+        "request_id": {"type": "string"},
+        "details": {"type": "object"}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

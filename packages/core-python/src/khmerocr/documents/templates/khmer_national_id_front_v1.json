@@ -1,0 +1,63 @@
+{
+  "template_id": "khmer_national_id_front_v1",
+  "template_version": "0.1.0",
+  "document_type": "khmer_national_id",
+  "side": "front",
+  "verified": false,
+  "notes": "PROVISIONAL layout used for development with synthetic fixtures. Region positions, labels, the ID number pattern, and the date convention have NOT been confirmed against authorized reference cards. While 'verified' is false, every result is marked review_required.",
+  "canonical_size": [1012, 638],
+  "fields": [
+    {
+      "name": "id_number",
+      "type": "id_number",
+      "box": [0.55, 0.19, 0.42, 0.11],
+      "script": "digits",
+      "languages": "eng",
+      "char_whitelist": "0123456789",
+      "critical": true,
+      "pattern": "^[0-9]{9}$",
+      "labels": ["ID", "No."],
+      "source": "front_region"
+    },
+    {
+      "name": "full_name_km",
+      "type": "khmer_name",
+      "box": [0.33, 0.31, 0.64, 0.12],
+      "script": "khmer",
+      "languages": "khm",
+      "critical": true,
+      "labels": ["គោត្តនាមនិងនាម", "ឈ្មោះ"],
+      "source": "front_region"
+    },
+    {
+      "name": "full_name_latin",
+      "type": "latin_name",
+      "box": [0.33, 0.43, 0.64, 0.10],
+      "script": "latin",
+      "languages": "eng",
+      "critical": true,
+      "labels": ["NAME"],
+      "source": "front_region"
+    },
+    {
+      "name": "date_of_birth",
+      "type": "birth_date",
+      "box": [0.33, 0.54, 0.44, 0.10],
+      "script": "mixed",
+      "languages": "khm+eng",
+      "critical": true,
+      "labels": ["ថ្ងៃខែឆ្នាំកំណើត"],
+      "source": "front_region"
+    },
+    {
+      "name": "gender",
+      "type": "gender",
+      "box": [0.78, 0.54, 0.19, 0.10],
+      "script": "mixed",
+      "languages": "khm+eng",
+      "critical": false,
+      "labels": ["ភេទ"],
+      "source": "front_region"
+    }
+  ]
+}

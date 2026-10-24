@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://khmerocr.dev/schemas/1.0/ocr-result.schema.json",
+  "title": "KhmerOCR General Text Result",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "document_type",
+    "status",
+    "text",
+    "regions",
+    "warnings",
+    "review_required"
+  ],
+  "properties": {
+    "schema_version": {"type": "string", "const": "1.0"},
+    "document_type": {"type": "string", "const": "general_text"},
+    "status": {"type": "string", "enum": ["success", "review_required", "failed"]},
+    "text": {"type": "string"},
+    "regions": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/text_region"}
+    },
+    "warnings": {"type": "array", "items": {"type": "string"}},
+    "review_required": {"type": "boolean"},
+    "metadata": {"type": "object"}
+  },
+  "$defs": {
+    "text_region": {
+      "type": "object",
+      "required": ["text", "confidence", "bbox"],
+      "properties": {
+        "text": {"type": "string"},
+        "confidence": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+        "bbox": {"$ref": "#/$defs/bbox"},
+        "label": {"type": ["string", "null"]}
+      },
+      "additionalProperties": false
+    },
+    "bbox": {
+      "type": "object",
+      "required": ["x", "y", "width", "height"],
+      "properties": {
+        "x": {"type": "integer", "minimum": 0},
+        "y": {"type": "integer", "minimum": 0},
+        "width": {"type": "integer", "minimum": 0},
+        "height": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

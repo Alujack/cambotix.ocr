@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Install
+        run: uv sync --python ${{ matrix.python-version }}
+      - name: Lint
+        run: uv run ruff check .
+      - name: Type check
+        run: uv run mypy
+      - name: Tests (unit, API, security, schema compatibility)
+        run: uv run pytest
+
+  core-without-api:
+    # The engine must install and work without the API package.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install "packages/core-python[validation]" pytest hypothesis
+      - run: python -c "import khmerocr, sys; assert 'fastapi' not in sys.modules"
+      - run: pytest packages/core-python/tests -p no:cacheprovider
+
+  tesseract-offline:
+    # Real Tesseract inference inside the Docker image with networking disabled.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e "packages/core-python[tesseract]"
+      - name: Fetch pinned language data (build time only)
+        run: |
+          mkdir -p /tmp/tessdata
+          for lang in khm eng; do
+            curl -sSfL -o /tmp/tessdata/$lang.traineddata \
+              https://github.com/tesseract-ocr/tessdata_fast/raw/4.1.0/$lang.traineddata
+          done
+      - name: Build bundle
+        run: |
+          python scripts/build_tesseract_bundle.py --model-id khmerocr-id-dev \
+            --traineddata /tmp/tessdata/khm.traineddata /tmp/tessdata/eng.traineddata \
+            --source-url https://github.com/tesseract-ocr/tessdata_fast/tree/4.1.0 \
+            --out /tmp/bundle
+      - run: python benchmarks/generate_synthetic.py --out /tmp/synthetic --count 30
+      - run: docker build -f docker/Dockerfile -t khmerocr-api:ci .
+      - name: Benchmark with networking disabled
+        run: |
+          docker run --rm --network none \
+            -v /tmp/bundle:/models/khmerocr-id-dev:ro \
+            -v /tmp/synthetic:/data/synthetic:ro \
+            -v $PWD/benchmarks:/bench:ro \
+            khmerocr-api:ci python /bench/evaluate.py \
+              --dataset /data/synthetic --model khmerocr-id-dev --out /tmp/reports
+
+  release-gate:
+    # Runs on tags only: blocks releases until models are benchmarked and licenses approved.
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python scripts/check_release.py

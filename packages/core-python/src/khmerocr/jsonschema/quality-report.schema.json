@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://khmerocr.dev/schemas/1.0/quality-report.schema.json",
+  "title": "KhmerOCR Image Quality Report",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "usable",
+    "width",
+    "height",
+    "blur_score",
+    "glare_ratio",
+    "brightness",
+    "contrast",
+    "issues",
+    "blocking_issues"
+  ],
+  "properties": {
+    "schema_version": {"type": "string", "const": "1.0"},
+    "usable": {"type": "boolean"},
+    "width": {"type": "integer", "minimum": 1},
+    "height": {"type": "integer", "minimum": 1},
+    "blur_score": {"type": "number", "minimum": 0},
+    "glare_ratio": {"type": "number", "minimum": 0, "maximum": 1},
+    "brightness": {"type": "number", "minimum": 0, "maximum": 255},
+    "contrast": {"type": "number", "minimum": 0},
+    "issues": {"type": "array", "items": {"type": "string"}},
+    "blocking_issues": {"type": "array", "items": {"type": "string"}}
+  },
+  "additionalProperties": false
+}

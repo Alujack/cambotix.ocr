@@ -1,0 +1,58 @@
+# Monorepo root. The installable packages live in packages/*; this file holds
+# the uv workspace definition and shared tool configuration.
+[project]
+name = "khmerocr-workspace"
+version = "0.0.0"
+requires-python = ">=3.10"
+dependencies = []
+
+[tool.uv]
+package = false
+
+[tool.uv.workspace]
+members = ["packages/core-python", "packages/api"]
+
+[tool.uv.sources]
+khmerocr = { workspace = true }
+khmerocr-api = { workspace = true }
+
+[dependency-groups]
+dev = [
+    "khmerocr[tesseract,validation]",
+    "khmerocr-api",
+    "pytest>=8",
+    "hypothesis>=6.100",
+    "jsonschema>=4.22",
+    "httpx>=0.27",
+    "ruff>=0.6",
+    "mypy>=1.11",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["packages/core-python/tests", "packages/api/tests", "tests"]
+addopts = "-ra --import-mode=importlib"
+markers = [
+    "tesseract: requires the tesseract binary and Khmer language data",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+extend-exclude = [".venv"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S", "RUF"]
+ignore = ["S101", "RUF001", "RUF002", "RUF003"]
+
+[tool.ruff.lint.per-file-ignores]
+"**/tests/**" = ["S", "B"]
+"tests/**" = ["S", "B"]
+"benchmarks/**" = ["S"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+ignore_missing_imports = true
+# numpy and OpenCV return loosely typed arrays; returning them is expected.
+warn_return_any = false
+files = ["packages/core-python/src", "packages/api/src"]

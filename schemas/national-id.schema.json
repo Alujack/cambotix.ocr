@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://khmerocr.dev/schemas/1.0/national-id.schema.json",
+  "title": "KhmerOCR National ID Result",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "document_type",
+    "status",
+    "fields",
+    "warnings",
+    "review_required"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0"
+    },
+    "document_type": {
+      "type": "string",
+      "const": "khmer_national_id"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "success",
+        "review_required",
+        "failed"
+      ]
+    },
+    "fields": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/field"
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "review_required": {
+      "type": "boolean"
+    },
+    "metadata": {
+      "type": "object"
+    },
+    "text_regions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/text_region"
+      }
+    }
+  },
+  "$defs": {
+    "field": {
+      "type": "object",
+      "required": [
+        "value",
+        "confidence",
+        "source"
+      ],
+      "properties": {
+        "value": {
+          "type": ["string", "null"]
+        },
+        "confidence": {
+          "description": "Recognition confidence for the text read in this field's region. It does not measure whether the region was mapped to the right field.",
+          "type": ["number", "null"],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "source": {
+          "type": "string"
+        },
+        "valid": {
+          "description": "Whether the normalized value passed format validation for its field type.",
+          "type": ["boolean", "null"]
+        }
+      },
+      "additionalProperties": false
+    },
+    "text_region": {
+      "type": "object",
+      "required": ["text", "confidence", "bbox"],
+      "properties": {
+        "text": {"type": "string"},
+        "confidence": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+        "bbox": {"$ref": "#/$defs/bbox"},
+        "label": {"type": ["string", "null"]}
+      },
+      "additionalProperties": false
+    },
+    "bbox": {
+      "type": "object",
+      "required": ["x", "y", "width", "height"],
+      "properties": {
+        "x": {"type": "integer", "minimum": 0},
+        "y": {"type": "integer", "minimum": 0},
+        "width": {"type": "integer", "minimum": 0},
+        "height": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

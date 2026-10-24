@@ -1,0 +1,24 @@
+[build-system]
+requires = ["hatchling>=1.24"]
+build-backend = "hatchling.build"
+
+[project]
+name = "khmerocr-api"
+dynamic = ["version"]
+description = "Local REST API for the KhmerOCR engine."
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.10"
+dependencies = [
+    "khmerocr[validation]",
+    "fastapi>=0.115",
+    "uvicorn>=0.30",
+    "python-multipart>=0.0.9",
+    "anyio>=4",
+]
+
+[tool.hatch.version]
+path = "src/khmerocr_api/_version.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/khmerocr_api"]

@@ -1,0 +1,16 @@
+{
+  "schema_version": "1.0",
+  "models": [
+    {
+      "model_id": "khmerocr-id-v1",
+      "task": "khmer_id_extraction",
+      "runtime": "local",
+      "recognition_model": "selected-after-benchmark",
+      "weights_sha256": "record-during-release",
+      "license": "verified-license-required",
+      "license_approved": false,
+      "model_version": "1.0.0",
+      "schema_version": "1.0"
+    }
+  ]
+}

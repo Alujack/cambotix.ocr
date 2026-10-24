@@ -1,0 +1,127 @@
+"""Tesseract recognizer backend.
+
+Requires the ``tesseract`` binary (4.1+) and the ``pytesseract`` package
+(``pip install "khmerocr[tesseract]"``). Language data (``khm.traineddata``,
+``eng.traineddata``) is read only from the model bundle's ``tessdata``
+directory, never from a system-wide location, so results are reproducible and
+pinned by the bundle checksum.
+
+Set ``KHMEROCR_TESSERACT_CMD`` to use a binary that is not on ``PATH``.
+
+pytesseract passes images to the tesseract process through short-lived files
+in the system temporary directory and deletes them after each call.
+"""
+
+from __future__ import annotations
+
+import os
+from pathlib import Path
+from typing import Any
+
+import cv2
+import numpy as np
+from PIL import Image
+
+from ..errors import InferenceFailedError, ModelNotAvailableError
+from ..preprocessing.io import ImageArray
+from ..schemas import BoundingBox, TextRegion
+from .base import RecognizedText, Recognizer, RegionHint
+
+_SCRIPT_LANGUAGES = {"khmer": "khm", "latin": "eng", "digits": "eng", "mixed": "khm+eng"}
+_MIN_LINE_HEIGHT = 48
+
+
+class TesseractRecognizer(Recognizer):
+    name = "tesseract"
+
+    def __init__(self, *, tessdata_dir: Path, default_languages: str = "khm+eng") -> None:
+        try:
+            import pytesseract
+        except ImportError as exc:
+            raise ModelNotAvailableError(
+                "The tesseract backend requires the 'pytesseract' package: "
+                "pip install 'khmerocr[tesseract]'."
+            ) from exc
+        self._pytesseract: Any = pytesseract
+        cmd = os.environ.get("KHMEROCR_TESSERACT_CMD")
+        if cmd:
+            pytesseract.pytesseract.tesseract_cmd = cmd
+        try:
+            self.version = str(pytesseract.get_tesseract_version())
+        except Exception as exc:  # TesseractNotFoundError, OSError, ...
+            raise ModelNotAvailableError("The tesseract binary was not found.") from exc
+
+        self.tessdata_dir = tessdata_dir
+        self.default_languages = default_languages
+        languages = set(default_languages.split("+")) | {"khm", "eng"}
+        missing = sorted(lang for lang in languages
+                         if not (tessdata_dir / f"{lang}.traineddata").is_file())
+        if missing:
+            raise ModelNotAvailableError(
+                "Tesseract language data is missing from the model bundle.",
+                details={"missing_languages": missing},
+            )
+
+    def describe(self) -> dict[str, str]:
+        return {"backend": self.name, "engine_version": self.version,
+                "languages": self.default_languages}
+
+    def recognize_line(self, image: ImageArray, hint: RegionHint | None = None) -> RecognizedText:
+        hint = hint or RegionHint()
+        languages = hint.languages or _SCRIPT_LANGUAGES.get(hint.script, self.default_languages)
+        data = self._image_to_data(_prepare_line(image), languages, psm=7,
+                                   whitelist=hint.char_whitelist)
+        words, confidences = [], []
+        for text, conf in zip(data["text"], data["conf"], strict=True):
+            text = str(text).strip()
+            conf = float(conf)
+            if text and conf >= 0:
+                words.append(text)
+                confidences.append(conf / 100.0)
+        if not words:
+            return RecognizedText(text="", confidence=None)
+        return RecognizedText(text=" ".join(words), confidence=float(np.mean(confidences)))
+
+    def recognize_page(self, image: ImageArray) -> list[TextRegion]:
+        data = self._image_to_data(image, self.default_languages, psm=3, whitelist=None)
+        lines: dict[tuple[int, int, int], list[int]] = {}
+        for i, text in enumerate(data["text"]):
+            if str(text).strip() and float(data["conf"][i]) >= 0:
+                key = (data["block_num"][i], data["par_num"][i], data["line_num"][i])
+                lines.setdefault(key, []).append(i)
+        regions: list[TextRegion] = []
+        for indices in lines.values():
+            x0 = min(data["left"][i] for i in indices)
+            y0 = min(data["top"][i] for i in indices)
+            x1 = max(data["left"][i] + data["width"][i] for i in indices)
+            y1 = max(data["top"][i] + data["height"][i] for i in indices)
+            regions.append(TextRegion(
+                text=" ".join(str(data["text"][i]).strip() for i in indices),
+                confidence=float(np.mean([float(data["conf"][i]) for i in indices])) / 100.0,
+                bbox=BoundingBox(int(x0), int(y0), int(x1 - x0), int(y1 - y0)),
+            ))
+        return regions
+
+    def _image_to_data(self, image: ImageArray, languages: str, *, psm: int,
+                       whitelist: str | None) -> dict[str, list[Any]]:
+        config = f'--oem 1 --psm {psm} --tessdata-dir "{self.tessdata_dir}"'
+        if whitelist:
+            config += f" -c tessedit_char_whitelist={whitelist}"
+        try:
+            result: dict[str, list[Any]] = self._pytesseract.image_to_data(
+                Image.fromarray(image), lang=languages, config=config,
+                output_type=self._pytesseract.Output.DICT,
+            )
+        except Exception as exc:
+            raise InferenceFailedError("Text recognition failed.") from exc
+        return result
+
+
+def _prepare_line(image: ImageArray) -> ImageArray:
+    gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+    if gray.shape[0] < _MIN_LINE_HEIGHT:
+        scale = _MIN_LINE_HEIGHT / max(1, gray.shape[0])
+        gray = cv2.resize(gray, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
+    # A white border helps Tesseract's line finder on tight crops.
+    gray = cv2.copyMakeBorder(gray, 10, 10, 10, 10, cv2.BORDER_CONSTANT, value=255)
+    return np.asarray(cv2.cvtColor(gray, cv2.COLOR_GRAY2RGB), dtype=np.uint8)
