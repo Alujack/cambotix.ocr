@@ -9,11 +9,12 @@ from typing import Any
 
 from ._version import __version__
 from .config import EngineConfig
-from .documents.layout import DocumentTemplate
-from .documents.national_id import DOCUMENT_TYPE, NationalIDExtractor
-from .errors import KhmerOCRError, ModelNotAvailableError, UnsupportedDocumentError
+from .documents.extractor import TemplateExtractor
+from .documents.layout import DOCUMENT_TEMPLATES, DocumentTemplate, template_for_document
+from .documents.national_id import DOCUMENT_TYPE
+from .errors import KhmerOCRError, ModelNotAvailableError
 from .models import ModelManifest, resolve_model_dir, verify_bundle
-from .pipeline import check_quality, decode, run_general_text, run_national_id
+from .pipeline import check_quality, decode, run_document, run_general_text
 from .preprocessing.io import ImageInput
 from .recognition.base import Recognizer
 from .recognition.registry import create_recognizer
@@ -36,7 +37,10 @@ class KhmerOCR:
         self.config = config or EngineConfig()
         self.manifest = manifest
         self._recognizer: Recognizer | None = recognizer
-        self._id_extractor = NationalIDExtractor(recognizer, self.config, template)
+        # Optional template override; it replaces the default template for its
+        # own document type.
+        self._template_overrides = {template.document_type: template} if template else {}
+        self._extractors: dict[str, TemplateExtractor] = {}
 
     @classmethod
     def from_pretrained(cls, model_dir: str | os.PathLike[str], *,
@@ -68,11 +72,15 @@ class KhmerOCR:
             "sdk_version": __version__,
             "model": self.manifest.summary() if self.manifest else None,
             "recognizer": self.recognizer.describe(),
-            "templates": {DOCUMENT_TYPE: {
-                "template_id": self._id_extractor.template.template_id,
-                "template_version": self._id_extractor.template.template_version,
-                "verified": self._id_extractor.template.verified,
-            }},
+            "templates": {
+                document_type: {
+                    "template_id": extractor.template.template_id,
+                    "template_version": extractor.template.template_version,
+                    "verified": extractor.template.verified,
+                }
+                for document_type, extractor in (
+                    (dt, self._extractor(dt)) for dt in self.supported_documents())
+            },
         }
 
     def recognize(self, image: ImageInput) -> OCRResult:
@@ -81,12 +89,18 @@ class KhmerOCR:
         result.metadata.update(self._model_metadata())
         return result
 
+    @staticmethod
+    def supported_documents() -> list[str]:
+        return sorted(DOCUMENT_TEMPLATES)
+
     def extract_id(self, image: ImageInput, *, document_type: str = DOCUMENT_TYPE) -> OCRResult:
-        """Extract Cambodian National ID fields from the card front."""
-        if document_type != DOCUMENT_TYPE:
-            raise UnsupportedDocumentError(f"Unsupported document type '{document_type}'.")
-        _ = self.recognizer  # raises if the engine has been closed
-        result = run_national_id(image, self._id_extractor, self.config)
+        """Extract fields from the front of an ID card.
+
+        ``document_type`` defaults to the Cambodian National ID; see
+        ``supported_documents()`` for the others.
+        """
+        extractor = self._extractor(document_type)
+        result = run_document(image, extractor, self.config)
         result.metadata.update(self._model_metadata())
         return result
 
@@ -115,6 +129,16 @@ class KhmerOCR:
                               **self._model_metadata()},
                 ))
         return results
+
+    def _extractor(self, document_type: str) -> TemplateExtractor:
+        extractor = self._extractors.get(document_type)
+        if extractor is None:
+            template = (self._template_overrides.get(document_type)
+                        or template_for_document(document_type))
+            extractor = TemplateExtractor(self.recognizer, self.config, template)
+            self._extractors[document_type] = extractor
+        _ = self.recognizer  # raises if the engine has been closed
+        return extractor
 
     def close(self) -> None:
         if self._recognizer is not None:

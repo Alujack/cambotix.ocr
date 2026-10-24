@@ -66,13 +66,15 @@ def _build_parser() -> argparse.ArgumentParser:
     for name, handler, help_text in (
         ("check", _check, "Check image quality."),
         ("recognize", _recognize, "Recognize general text."),
-        ("extract-id", _extract_id, "Extract Cambodian National ID fields."),
+        ("extract-id", _extract_id, "Extract ID card fields (National ID by default)."),
     ):
         p = sub.add_parser(name, help=help_text)
         p.add_argument("image", type=Path)
         p.add_argument("--model", default=_default_model(),
                        help="Model ID or bundle directory (default: %(default)s).")
         if name == "extract-id":
+            p.add_argument("--document-type", default="khmer_national_id",
+                           help="khmer_national_id (default) or student_id_card.")
             p.add_argument("--include-text-regions", action="store_true")
         p.set_defaults(handler=handler)
 
@@ -130,7 +132,7 @@ def _extract_id(args: argparse.Namespace) -> dict[str, Any]:
     from ..engine import KhmerOCR
 
     with KhmerOCR.from_pretrained(args.model) as ocr:
-        result = ocr.extract_id(args.image)
+        result = ocr.extract_id(args.image, document_type=args.document_type)
         return result.to_dict(include_text_regions=args.include_text_regions)
 
 

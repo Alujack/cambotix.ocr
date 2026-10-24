@@ -62,7 +62,8 @@ def char_error_rate(predicted: str | None, expected: str) -> float:
     return prev[-1] / len(expected)
 
 
-def evaluate(engine: KhmerOCR, dataset: Path, *, include_values: bool = False) -> dict[str, Any]:
+def evaluate(engine: KhmerOCR, dataset: Path, *, include_values: bool = False,
+             document_type: str = "khmer_national_id") -> dict[str, Any]:
     samples = [json.loads(line) for line in
                (dataset / "labels.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
     field_stats: dict[str, dict[str, Any]] = defaultdict(
@@ -80,7 +81,7 @@ def evaluate(engine: KhmerOCR, dataset: Path, *, include_values: bool = False) -
         cat["n"] += 1
         started = time.perf_counter()
         try:
-            result = engine.extract_id(dataset / sample["image"])
+            result = engine.extract_id(dataset / sample["image"], document_type=document_type)
         except KhmerOCRError as exc:
             latencies.append(time.perf_counter() - started)
             error_codes[exc.code.value] += 1
@@ -138,6 +139,7 @@ def evaluate(engine: KhmerOCR, dataset: Path, *, include_values: bool = False) -
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "dataset": dataset.name,
+        "document_type": document_type,
         "sdk_version": __version__,
         "engine": engine.info(),
         "platform": platform.platform(),
@@ -205,6 +207,7 @@ def main() -> int:
     parser.add_argument("--dataset", type=Path, required=True)
     parser.add_argument("--model", required=True, help="Model ID or bundle directory.")
     parser.add_argument("--out", type=Path, default=ROOT / "benchmarks" / "reports")
+    parser.add_argument("--document-type", default="khmer_national_id")
     parser.add_argument("--gate", action="store_true", help="Exit 1 if release gates fail.")
     parser.add_argument("--min-samples", type=int, default=300)
     parser.add_argument("--include-values", action="store_true",
@@ -212,7 +215,8 @@ def main() -> int:
     args = parser.parse_args()
 
     with KhmerOCR.from_pretrained(args.model) as engine:
-        report = evaluate(engine, args.dataset, include_values=args.include_values)
+        report = evaluate(engine, args.dataset, include_values=args.include_values,
+                          document_type=args.document_type)
     problems = gate(report, args.min_samples) if args.gate else None
     report["gate"] = None if problems is None else {"passed": not problems,
                                                      "problems": problems}

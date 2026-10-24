@@ -10,6 +10,15 @@ from ..schemas import QualityReport
 from .io import ImageArray
 
 _ANALYSIS_LONG_SIDE = 1000
+_SATURATED = 250
+# Glare hotspots fade out through a soft bright halo; printed white card
+# backgrounds end at sharp edges (text, photo, borders). A saturated region
+# counts as glare when this share of its surrounding ring is bright-but-not-
+# clipped. Separation measured on synthetic glare (>=0.80) versus a real
+# white-background card (0.32); recalibrate on real glare photos.
+_HALO_RING_PX = 10
+_HALO_MIN_FRACTION = 0.6
+_MIN_GLARE_COMPONENT_PX = 50
 
 
 def assess_quality(image: ImageArray, thresholds: QualityThresholds) -> QualityReport:
@@ -18,7 +27,7 @@ def assess_quality(image: ImageArray, thresholds: QualityThresholds) -> QualityR
     gray = _resize_long_side(gray, _ANALYSIS_LONG_SIDE)
 
     blur_score = float(cv2.Laplacian(gray, cv2.CV_64F).var())
-    glare_ratio = float(np.count_nonzero(gray >= 250)) / gray.size
+    glare_ratio = _glare_ratio(gray)
     brightness = float(gray.mean())
     contrast = float(gray.std())
 
@@ -55,6 +64,30 @@ def assess_quality(image: ImageArray, thresholds: QualityThresholds) -> QualityR
         issues=blocking + issues,
         blocking_issues=blocking,
     )
+
+
+def _glare_ratio(gray: np.ndarray) -> float:
+    """Share of the image covered by saturated regions that look like glare."""
+    saturated = (gray >= _SATURATED).astype(np.uint8)
+    count, labels, stats, _ = cv2.connectedComponentsWithStats(saturated, connectivity=8)
+    kernel = np.ones((2 * _HALO_RING_PX + 1, 2 * _HALO_RING_PX + 1), np.uint8)
+    h, w = gray.shape
+    glare_pixels = 0
+    for label in range(1, count):
+        x, y, bw, bh, area = stats[label]
+        if area < _MIN_GLARE_COMPONENT_PX:
+            continue
+        x0, y0 = max(0, x - _HALO_RING_PX), max(0, y - _HALO_RING_PX)
+        x1, y1 = min(w, x + bw + _HALO_RING_PX), min(h, y + bh + _HALO_RING_PX)
+        component = (labels[y0:y1, x0:x1] == label).astype(np.uint8)
+        ring = cv2.dilate(component, kernel) > component
+        ring_values = gray[y0:y1, x0:x1][ring]
+        if ring_values.size == 0:
+            continue
+        halo = np.count_nonzero((ring_values >= 200) & (ring_values < _SATURATED))
+        if halo / ring_values.size >= _HALO_MIN_FRACTION:
+            glare_pixels += int(area)
+    return glare_pixels / gray.size
 
 
 def _resize_long_side(gray: np.ndarray, long_side: int) -> np.ndarray:

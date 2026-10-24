@@ -13,6 +13,7 @@ from typing import Any
 
 SCHEMA_FILES = {
     "khmer_national_id": "national-id.schema.json",
+    "document": "document-result.schema.json",
     "general_text": "ocr-result.schema.json",
     "quality_report": "quality-report.schema.json",
     "error": "error.schema.json",
@@ -26,6 +27,13 @@ def load_schema(name: str) -> dict[str, Any]:
     text = (resources.files(__name__) / filename).read_text(encoding="utf-8")
     schema: dict[str, Any] = json.loads(text)
     return schema
+
+
+def contract_for(document_type: str) -> str:
+    """Schema contract name for a result's ``document_type``."""
+    if document_type in ("khmer_national_id", "general_text"):
+        return document_type
+    return "document"
 
 
 def validate(instance: dict[str, Any], name: str) -> None:

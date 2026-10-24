@@ -1,4 +1,4 @@
-from .dates import parse_day_first_date
+from .dates import parse_day_first_date, parse_khmer_month_date
 from .fields import NORMALIZERS, Normalized
 from .text import contains_khmer, normalize_text, strip_labels, to_ascii_digits
 
@@ -8,6 +8,7 @@ __all__ = [
     "contains_khmer",
     "normalize_text",
     "parse_day_first_date",
+    "parse_khmer_month_date",
     "strip_labels",
     "to_ascii_digits",
 ]

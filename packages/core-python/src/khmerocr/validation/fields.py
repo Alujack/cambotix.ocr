@@ -13,7 +13,12 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
-from .dates import is_plausible_birth_date, parse_day_first_date
+from .dates import (
+    is_plausible_birth_date,
+    is_plausible_issue_date,
+    parse_day_first_date,
+    parse_khmer_month_date,
+)
 from .text import contains_khmer, normalize_text, to_ascii_digits
 
 # Characters commonly confused with digits by OCR engines.
@@ -71,17 +76,28 @@ def normalize_birth_date(text: str, spec: dict[str, Any]) -> Normalized:
     return Normalized(parsed.isoformat(), True)
 
 
+def normalize_issue_date(text: str, spec: dict[str, Any]) -> Normalized:
+    parsed = parse_khmer_month_date(text) or parse_day_first_date(text)
+    if parsed is None:
+        return Normalized(None, False, ["invalid_format"] if text else [])
+    if not is_plausible_issue_date(parsed):
+        return Normalized(parsed.isoformat(), False, ["implausible_date"])
+    return Normalized(parsed.isoformat(), True)
+
+
 def normalize_gender(text: str, spec: dict[str, Any]) -> Normalized:
+    # Bilingual cards print both scripts ("ប្រុស / Male"); every reading found
+    # must agree, otherwise the value is ambiguous.
     compact = text.replace(" ", "")
-    has_male = "ប្រុស" in compact
-    has_female = "ស្រី" in compact
-    if not (has_male or has_female):
-        tokens = set(re.findall(r"[A-Za-z]+", text.upper()))
-        has_male = bool(tokens & {"M", "MALE"})
-        has_female = bool(tokens & {"F", "FEMALE"})
-    if has_male == has_female:
+    tokens = set(re.findall(r"[A-Za-z]+", text.upper()))
+    readings = set()
+    if "ប្រុស" in compact or tokens & {"M", "MALE"}:
+        readings.add("M")
+    if "ស្រី" in compact or tokens & {"F", "FEMALE"}:
+        readings.add("F")
+    if len(readings) != 1:
         return Normalized(None, False, ["ambiguous_value"] if text else [])
-    return Normalized("M" if has_male else "F", True)
+    return Normalized(readings.pop(), True)
 
 
 def normalize_text_field(text: str, spec: dict[str, Any]) -> Normalized:
@@ -93,6 +109,7 @@ NORMALIZERS: dict[str, Callable[[str, dict[str, Any]], Normalized]] = {
     "khmer_name": normalize_khmer_name,
     "latin_name": normalize_latin_name,
     "birth_date": normalize_birth_date,
+    "issue_date": normalize_issue_date,
     "gender": normalize_gender,
     "text": normalize_text_field,
 }

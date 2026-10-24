@@ -27,6 +27,10 @@ class FieldSpec:
     languages: str | None = None
     char_whitelist: str | None = None
     pattern: str | None = None
+    # For bilingual lines such as "ប្រុស / Male": split on ``separator`` and
+    # keep part ``part`` (0-based).
+    separator: str | None = None
+    part: int | None = None
 
     def hint(self) -> RegionHint:
         return RegionHint(name=self.name, script=self.script, languages=self.languages,
@@ -44,6 +48,8 @@ class DocumentTemplate:
     verified: bool
     canonical_size: tuple[int, int]
     fields: tuple[FieldSpec, ...]
+    # Region padding override (fraction of card size) for dense layouts.
+    padding: float | None = None
 
     @property
     def critical_fields(self) -> list[str]:
@@ -61,6 +67,7 @@ class DocumentTemplate:
                 verified=bool(data["verified"]),
                 canonical_size=(int(width), int(height)),
                 fields=fields,
+                padding=None if data.get("padding") is None else float(data["padding"]),
             )
         except (KeyError, TypeError, ValueError) as exc:
             raise UnsupportedDocumentError("The document template is malformed.") from exc
@@ -68,6 +75,23 @@ class DocumentTemplate:
     @classmethod
     def from_file(cls, path: Path) -> DocumentTemplate:
         return cls.from_dict(json.loads(path.read_text(encoding="utf-8")))
+
+
+# Default layout template for each supported document type.
+DOCUMENT_TEMPLATES = {
+    "khmer_national_id": "khmer_national_id_front_v1",
+    "student_id_card": "student_id_card_front_v1",
+}
+
+
+def template_for_document(document_type: str) -> DocumentTemplate:
+    template_id = DOCUMENT_TEMPLATES.get(document_type)
+    if template_id is None:
+        raise UnsupportedDocumentError(
+            f"Unsupported document type '{document_type}'.",
+            details={"supported": sorted(DOCUMENT_TEMPLATES)},
+        )
+    return load_builtin_template(template_id)
 
 
 def load_builtin_template(template_id: str) -> DocumentTemplate:
@@ -95,4 +119,6 @@ def _field_from_dict(data: dict[str, Any]) -> FieldSpec:
         languages=data.get("languages"),
         char_whitelist=data.get("char_whitelist"),
         pattern=data.get("pattern"),
+        separator=data.get("separator"),
+        part=None if data.get("part") is None else int(data["part"]),
     )

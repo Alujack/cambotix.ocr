@@ -28,6 +28,22 @@ async def extract_national_id(
                    "khmer_national_id", settings)
 
 
+@router.post("/student-id/extract")
+async def extract_student_id(
+    request: Request,
+    file: Annotated[UploadFile, File(description="Front of the card: JPEG, PNG or WebP.")],
+    include_text_regions: Annotated[bool, Form()] = False,
+) -> dict[str, Any]:
+    """Extract university student ID card fields (provisional layout)."""
+    settings = request.app.state.settings
+    engine = get_engine(request)
+    data = await read_upload(file, settings)
+    result = await run_inference(
+        request, lambda: engine.extract_id(data, document_type="student_id_card"))
+    return checked(result.to_dict(include_text_regions=include_text_regions),
+                   "document", settings)
+
+
 @router.post("/quality-check")
 async def quality_check(
     request: Request,

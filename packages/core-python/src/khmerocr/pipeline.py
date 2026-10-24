@@ -12,7 +12,7 @@ from collections.abc import Callable
 from typing import TypeVar
 
 from .config import EngineConfig
-from .documents.national_id import NationalIDExtractor
+from .documents.extractor import TemplateExtractor
 from .errors import ImageQualityTooLowError, InferenceFailedError, KhmerOCRError
 from .preprocessing.io import ImageArray, ImageInput, load_image
 from .preprocessing.quality import assess_quality
@@ -33,7 +33,7 @@ def check_quality(image: ImageArray, config: EngineConfig) -> QualityReport:
     return assess_quality(image, config.quality)
 
 
-def run_national_id(source: ImageInput, extractor: NationalIDExtractor,
+def run_document(source: ImageInput, extractor: TemplateExtractor,
                     config: EngineConfig) -> OCRResult:
     started = time.perf_counter()
     image = decode(source, config)
@@ -46,8 +46,8 @@ def run_national_id(source: ImageInput, extractor: NationalIDExtractor,
     result = _guarded(lambda: extractor.extract(image, quality))
     result.metadata["quality"] = _quality_summary(quality)
     result.metadata["processing_ms"] = _elapsed_ms(started)
-    logger.debug("national_id extraction status=%s review=%s fields=%d ms=%d",
-                 result.status, result.review_required, len(result.fields),
+    logger.debug("document extraction type=%s status=%s review=%s fields=%d ms=%d",
+                 result.document_type, result.status, result.review_required, len(result.fields),
                  result.metadata["processing_ms"])
     return result
 
