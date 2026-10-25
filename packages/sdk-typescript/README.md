@@ -9,14 +9,12 @@ runtime dependencies and works in Node 18+ and modern browsers.
 
 ## Install
 
-Not published yet. Install from a checkout:
-
 ```bash
-npm install ../path/to/cambotix.ocr/packages/sdk-typescript
+npm install @khmerocr/client
 ```
 
-or build a tarball with `npm pack` in this folder and install that. The
-package ships both ESM and CommonJS builds, with type definitions for each.
+The package ships both ESM and CommonJS builds, with type definitions for
+each.
 
 Start a server first (see [docs/installation.md](../../docs/installation.md)):
 

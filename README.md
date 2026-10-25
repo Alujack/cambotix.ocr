@@ -96,7 +96,7 @@ packages/core-python/   khmerocr: engine (no FastAPI/DB/cloud dependencies)
     adapters/cli.py     `khmerocr` command
     testing/            scripted recognizer + synthetic SPECIMEN cards
 packages/api/           cambotix-ocr-api: thin FastAPI layer (/v1)
-packages/sdk-typescript/  @khmerocr/client: TypeScript client for /v1 (not published)
+packages/sdk-typescript/  @khmerocr/client: TypeScript client for /v1 (on npm)
 packages/sdk-flutter/     khmerocr: Dart/Flutter client + camera scanner example (not published)
 schemas/                JSON Schemas for non-Python consumers
 models/                 release registry (manifest.json); weights are not stored here
