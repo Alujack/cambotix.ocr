@@ -7,6 +7,7 @@ same error envelope as the REST API, with exit status 1.
 from __future__ import annotations
 
 import argparse
+import io
 import json
 import logging
 import os
@@ -29,6 +30,7 @@ DEFAULT_MODEL = "khmerocr-id-v1"
 
 
 def main(argv: list[str] | None = None) -> int:
+    _use_utf8_output()
     parser = _build_parser()
     args = parser.parse_args(argv)
     if not hasattr(args, "handler"):
@@ -42,6 +44,14 @@ def main(argv: list[str] | None = None) -> int:
     if output is not None:
         print(json.dumps(output, ensure_ascii=False, indent=2))
     return 0
+
+
+def _use_utf8_output() -> None:
+    # Output carries Khmer text. On Windows, pipes and redirects default to a
+    # legacy code page (such as cp1252) that cannot encode it.
+    for stream in (sys.stdout, sys.stderr):
+        if isinstance(stream, io.TextIOWrapper):
+            stream.reconfigure(encoding="utf-8")
 
 
 def _build_parser() -> argparse.ArgumentParser:

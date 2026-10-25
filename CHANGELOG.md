@@ -30,3 +30,5 @@ their own changelogs in `packages/sdk-typescript` and `packages/sdk-flutter`.
 
 - Windows: Tesseract could not load bundle language data, and font license
   downloads used backslash URLs.
+- Windows: the `khmerocr` command crashed when its output, containing Khmer
+  text, was piped or redirected to a file. It now always writes UTF-8.

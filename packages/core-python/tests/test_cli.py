@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import io
 import json
+import sys
 
 from khmerocr.adapters.cli import main
 
@@ -35,6 +37,22 @@ def test_models_install_list_verify_and_extract(tmp_path, monkeypatch, card_phot
     assert main(["extract-id", str(image), "--model", "test-model"]) == 0
     result = json.loads(capsys.readouterr().out)
     assert result["fields"]["id_number"]["value"] == "000000001"
+
+
+def test_khmer_output_survives_a_legacy_code_page(tmp_path, monkeypatch,
+                                                  card_photo_png) -> None:
+    # Windows pipes default to cp1252, which cannot encode Khmer.
+    monkeypatch.setenv("KHMEROCR_HOME", str(tmp_path / "home"))
+    assert main(["models", "install", "test-model", "--from",
+                 str(make_bundle(tmp_path / "src"))]) == 0
+    image = tmp_path / "card.png"
+    image.write_bytes(card_photo_png)
+    raw = io.BytesIO()
+    monkeypatch.setattr(sys, "stdout", io.TextIOWrapper(raw, encoding="cp1252"))
+    assert main(["extract-id", str(image), "--model", "test-model"]) == 0
+    sys.stdout.flush()
+    result = json.loads(raw.getvalue().decode("utf-8"))
+    assert result["fields"]["full_name_km"]["value"] == "គំរូ សាកល្បង"
 
 
 def test_install_without_source_refuses_to_download(capsys) -> None:

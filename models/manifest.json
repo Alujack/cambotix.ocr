@@ -15,7 +15,8 @@
          "url": "https://github.com/Alujack/cambotix.ocr/tree/master/training",
          "notes": "Trained on OFL-1.1 fonts (google/fonts e7db6ca) and CC BY-SA 4.0 Khmer Wikipedia text rendered into images; see docs/model-card.md."}
       ],
-      "license_approved": false,
+      "license_approved": true,
+      "license_approved_by": "Yoeurn Yan",
       "model_version": "0.1.0",
       "schema_version": "1.0",
       "status": "experimental",

@@ -1,7 +1,8 @@
 # Contributing
 
 Thanks for helping. Bug reports, fixes, new card layouts, training
-improvements, and documentation are all welcome.
+improvements, and documentation are all welcome. Everyone taking part
+follows the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## The one rule: no real personal data
 
@@ -68,3 +69,18 @@ removing or renaming a field needs a new schema version.
 - CI must pass: Python lint/types/tests, both clients, the Flutter example.
 - Explain *why* in the description, and how you tested it.
 - Contributions are licensed under Apache-2.0, the project license.
+
+## Releases (maintainers)
+
+- **Python packages:** set the same version in both `_version.py` files,
+  update `CHANGELOG.md`, merge, then push a tag `v<version>`.
+  `.github/workflows/publish-python.yml` runs the release gate and publishes
+  both packages to PyPI.
+- **Model bundles:** build with `scripts/build_bundle.py`, record the license
+  approval in `models/manifest.json` and the bundle manifest, check with
+  `python scripts/check_release.py --bundle <dir>`, then attach the archive
+  and its `.sha256` file to a GitHub Release tagged
+  `model-<model_id>-<version>`.
+- **Clients:** `npm publish` in `packages/sdk-typescript` and
+  `dart pub publish` in `packages/sdk-flutter`, after bumping their versions
+  and changelogs.

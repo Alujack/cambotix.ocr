@@ -138,7 +138,8 @@ it.
 - [Installation](docs/installation.md)
 - [REST API reference](docs/api-reference.md)
 - [Model card: khmerocr-id-v1](docs/model-card.md)
-- [Contributing](CONTRIBUTING.md) and [security policy](SECURITY.md)
+- [Contributing](CONTRIBUTING.md), [code of conduct](CODE_OF_CONDUCT.md), and
+  [security policy](SECURITY.md)
 - [Changelog](CHANGELOG.md)
 - [Security and privacy](docs/privacy.md)
 - [Model selection and licensing](docs/model-licensing.md)
