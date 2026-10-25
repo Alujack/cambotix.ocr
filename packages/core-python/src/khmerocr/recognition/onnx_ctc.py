@@ -18,11 +18,27 @@ is trimmed to its ink before inference. Vocabularies without a space
 character cannot separate words; when ``restore_spaces`` is set, spaces are
 re-inserted where the image has a wide blank gap between two decoded
 characters.
+
+Decoded lines are checked against Khmer orthography. Edge words that are only
+a stray Khmer mark and punctuation (such as ``.្`` picked up from the next
+line at a crop edge) are dropped, but the read's confidence is capped, since
+the same pattern also appears when the letter of a real word was misread
+(``(ៅ`` for ``ពៅ``). Any other impossible sequence, such as a coeng (្) that
+does not join two consonants, cannot be repaired without guessing, so it is
+kept and the read gets confidence 0.
+
+The line confidence is the mean probability of the decoded characters. That
+mean ranks reads well but sits high even for wrong lines, so a bundle can
+ship ``confidence_calibration``: ``[raw, calibrated]`` breakpoints, fitted on
+held-out lines, that map the mean to the share of lines read exactly right.
 """
 
 from __future__ import annotations
 
 import os
+import unicodedata
+from collections.abc import Sequence
+from itertools import pairwise
 from pathlib import Path
 from typing import Any
 
@@ -44,13 +60,26 @@ _SPACE_GAP_RATIO = 0.22
 _CROP_MARGIN_Y = 4
 _CROP_MARGIN_X = 6
 
+_COENG = "្"
+_KHMER_CONSONANTS = range(0x1780, 0x17A3)  # ក .. អ
+_KHMER_BASES = range(0x1780, 0x17B4)  # consonants and independent vowels
+# Upper bound on the confidence of a read that had edge noise removed, low
+# enough that the engine flags it for review.
+_CLEANED_CONFIDENCE = 0.5
+# Dependent vowels and signs that must follow a Khmer letter. U+17C8 (ៈ) is
+# left out: recognizers read a printed ":" as ៈ, often after a space.
+_KHMER_DEPENDENT = frozenset([*range(0x17B6, 0x17C8), *range(0x17C9, 0x17D2), 0x17D3, 0x17DD])
+
 
 class OnnxCtcRecognizer(Recognizer):
     name = "onnx-ctc"
 
     def __init__(self, *, model_path: Path, tokens: str, token_offset: int = 3,
                  input_height: int = 32, restore_spaces: bool = True,
+                 confidence_calibration: Sequence[Sequence[float]] | None = None,
                  session: Any = None) -> None:
+        self.calibration = (_check_calibration(confidence_calibration)
+                            if confidence_calibration is not None else None)
         if session is None:
             os.environ.setdefault("ORT_DISABLE_TELEMETRY", "1")
             try:
@@ -98,9 +127,25 @@ class OnnxCtcRecognizer(Recognizer):
         chars, steps, confidences = self._decode(np.asarray(logits)[:, 0, :])
         if not chars:
             return RecognizedText(text="", confidence=None)
+        scores: list[float | None] = list(confidences)
         if self.restore_spaces:
+            # The vocabulary has no space, so every space here was inserted.
             chars = insert_word_spaces(chars, steps, line, len(logits))
-        return RecognizedText(text="".join(chars), confidence=float(np.mean(confidences)))
+            remaining = iter(confidences)
+            scores = [None if ch == " " else next(remaining) for ch in chars]
+        cleaned, scores = drop_edge_noise(chars, scores)
+        kept = [score for score in scores if score is not None]
+        if not kept:
+            return RecognizedText(text="", confidence=None)
+        text = "".join(cleaned)
+        confidence = float(np.mean(kept))
+        if self.calibration is not None:
+            confidence = float(np.interp(confidence, *self.calibration))
+        if len(cleaned) < len(chars):
+            confidence = min(confidence, _CLEANED_CONFIDENCE)
+        if not khmer_structure_valid(text):
+            confidence = 0.0
+        return RecognizedText(text=text, confidence=confidence)
 
     def close(self) -> None:
         self._session = None
@@ -136,6 +181,70 @@ def check_onnxruntime_version(version: str) -> None:
             "offline guarantee. Install 'onnxruntime<1.29'.",
             details={"onnxruntime_version": version},
         )
+
+
+def _check_calibration(points: Sequence[Sequence[float]]) -> tuple[list[float], list[float]]:
+    try:
+        raw = [float(p[0]) for p in points]
+        calibrated = [float(p[1]) for p in points]
+        valid = (len(points) >= 2 and all(len(p) == 2 for p in points)
+                 and all(0.0 <= v <= 1.0 for v in raw + calibrated)
+                 and all(a < b for a, b in pairwise(raw))
+                 and all(a <= b for a, b in pairwise(calibrated)))
+    except (TypeError, ValueError, IndexError):
+        valid = False
+    if not valid:
+        raise ModelNotAvailableError(
+            "confidence_calibration must be at least two [raw, calibrated] pairs in [0, 1], "
+            "with raw strictly increasing and calibrated non-decreasing.")
+    return raw, calibrated
+
+
+def _is_noise_word(chars: Sequence[str]) -> bool:
+    # Punctuation-only words such as "។", ")" or "-" are real text; a Khmer
+    # mark with no letter to attach to is not.
+    return (not any(unicodedata.category(ch)[0] in "LN" for ch in chars)
+            and any(ch == _COENG or ord(ch) in _KHMER_DEPENDENT for ch in chars))
+
+
+def drop_edge_noise(chars: list[str],
+                    scores: list[float | None]) -> tuple[list[str], list[float | None]]:
+    """Drop leading and trailing words made of a Khmer mark and punctuation
+    with no letter or digit, such as ``.្`` read from a neighbouring line at
+    the crop edge. A line that is a single word is left alone."""
+    start, end = 0, len(chars)
+    while True:
+        while start < end and chars[start] == " ":
+            start += 1
+        while end > start and chars[end - 1] == " ":
+            end -= 1
+        inner = chars[start:end]
+        if " " not in inner:
+            break
+        first_space = inner.index(" ")
+        last_space = len(inner) - 1 - inner[::-1].index(" ")
+        if _is_noise_word(inner[last_space + 1:]):
+            end = start + last_space
+        elif _is_noise_word(inner[:first_space]):
+            start += first_space
+        else:
+            break
+    return chars[start:end], scores[start:end]
+
+
+def khmer_structure_valid(text: str) -> bool:
+    """False when the text has a Khmer sequence no correctly read word can
+    contain: a coeng (្) not between a base letter and a consonant, or a
+    dependent vowel or sign with no Khmer character before it."""
+    for i, ch in enumerate(text):
+        prev = ord(text[i - 1]) if i else None
+        if ch == _COENG:
+            nxt = ord(text[i + 1]) if i + 1 < len(text) else None
+            if prev not in _KHMER_BASES or nxt not in _KHMER_CONSONANTS:
+                return False
+        elif ord(ch) in _KHMER_DEPENDENT and (prev is None or not 0x1780 <= prev <= 0x17FF):
+            return False
+    return True
 
 
 def trim_to_ink(gray: NDArray[np.uint8]) -> NDArray[np.uint8] | None:

@@ -86,6 +86,7 @@ def _onnx_ctc_factory(model_dir: Path, options: Mapping[str, Any]) -> Recognizer
         token_offset=int(options.get("token_offset", 3)),
         input_height=int(options.get("input_height", 32)),
         restore_spaces=bool(options.get("restore_spaces", True)),
+        confidence_calibration=options.get("confidence_calibration"),
     )
 
 
