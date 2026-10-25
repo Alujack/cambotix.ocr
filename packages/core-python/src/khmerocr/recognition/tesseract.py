@@ -59,6 +59,11 @@ class TesseractRecognizer(Recognizer):
         except Exception as exc:  # TesseractNotFoundError, OSError, ...
             raise ModelNotAvailableError("The tesseract binary was not found.") from exc
 
+        if os.name == "nt" and any(ch.isspace() for ch in str(tessdata_dir)):
+            raise ModelNotAvailableError(
+                "On Windows, the model bundle path must not contain spaces.",
+                details={"tessdata_dir": str(tessdata_dir)},
+            )
         self.tessdata_dir = tessdata_dir
         self.default_languages = default_languages
         languages = set(default_languages.split("+")) | {"khm", "eng"}
@@ -112,7 +117,10 @@ class TesseractRecognizer(Recognizer):
 
     def _image_to_data(self, image: ImageArray, languages: str, *, psm: int,
                        whitelist: str | None) -> dict[str, list[Any]]:
-        config = f'--oem 1 --psm {psm} --tessdata-dir "{self.tessdata_dir}"'
+        # pytesseract splits config with shlex in non-POSIX mode on Windows, which
+        # keeps quotes as literal characters, so the path is only quoted on POSIX.
+        tessdata = self.tessdata_dir if os.name == "nt" else f'"{self.tessdata_dir}"'
+        config = f"--oem 1 --psm {psm} --tessdata-dir {tessdata}"
         if whitelist:
             config += f" -c tessedit_char_whitelist={whitelist}"
         try:
