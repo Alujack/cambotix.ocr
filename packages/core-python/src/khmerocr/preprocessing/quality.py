@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import cv2
 import numpy as np
+from numpy.typing import NDArray
 
 from ..config import QualityThresholds
 from ..schemas import QualityReport
@@ -66,7 +69,7 @@ def assess_quality(image: ImageArray, thresholds: QualityThresholds) -> QualityR
     )
 
 
-def _glare_ratio(gray: np.ndarray) -> float:
+def _glare_ratio(gray: NDArray[Any]) -> float:
     """Share of the image covered by saturated regions that look like glare."""
     saturated = (gray >= _SATURATED).astype(np.uint8)
     count, labels, stats, _ = cv2.connectedComponentsWithStats(saturated, connectivity=8)
@@ -90,7 +93,7 @@ def _glare_ratio(gray: np.ndarray) -> float:
     return glare_pixels / gray.size
 
 
-def _resize_long_side(gray: np.ndarray, long_side: int) -> np.ndarray:
+def _resize_long_side(gray: NDArray[Any], long_side: int) -> NDArray[Any]:
     h, w = gray.shape[:2]
     scale = long_side / max(h, w)
     if abs(scale - 1.0) < 1e-3:
