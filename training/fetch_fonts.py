@@ -16,7 +16,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 HERE = Path(__file__).resolve().parent
 RAW = "https://raw.githubusercontent.com/google/fonts/{commit}/{path}"
@@ -42,7 +42,8 @@ def main() -> int:
             target.write_bytes(fetch(url))
             time.sleep(0.05)
         lock[path] = {"sha256": hashlib.sha256(target.read_bytes()).hexdigest()}
-        licenses.add(str(Path(path).parent / "OFL.txt"))
+        # Repo paths are URL paths; Path would join them with "\" on Windows.
+        licenses.add(str(PurePosixPath(path).parent / "OFL.txt"))
     for path in sorted(licenses):
         target = out / path
         if target.is_file():
@@ -51,7 +52,7 @@ def main() -> int:
             target.write_bytes(fetch(RAW.format(commit=spec["commit"], path=path)))
         except urllib.error.HTTPError:
             # Some families (e.g. Tinos) declare the license only in METADATA.pb.
-            metadata = str(Path(path).parent / "METADATA.pb")
+            metadata = str(PurePosixPath(path).parent / "METADATA.pb")
             data = fetch(RAW.format(commit=spec["commit"], path=metadata))
             if b'license: "OFL"' not in data:
                 raise RuntimeError(f"no OFL declaration for {path}") from None
