@@ -1,0 +1,94 @@
+{
+  "name": "@khmerocr/local",
+  "version": "0.1.0",
+  "description": "Run KhmerOCR on the device: Cambodian ID card extraction in the browser or Node, with no OCR server.",
+  "license": "Apache-2.0",
+  "author": "Yoeurn Yan",
+  "homepage": "https://github.com/Alujack/cambotix.ocr/tree/master/packages/sdk-local#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Alujack/cambotix.ocr.git",
+    "directory": "packages/sdk-local"
+  },
+  "bugs": "https://github.com/Alujack/cambotix.ocr/issues",
+  "keywords": ["ocr", "khmer", "cambodia", "id-card", "kyc", "khmerocr", "onnx", "offline"],
+  "publishConfig": {
+    "access": "public"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "engines": {
+    "node": ">=20"
+  },
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/esm/index.d.ts",
+        "default": "./dist/esm/index.js"
+      },
+      "require": {
+        "types": "./dist/cjs/index.d.ts",
+        "default": "./dist/cjs/index.js"
+      }
+    },
+    "./browser": {
+      "import": {
+        "types": "./dist/esm/browser.d.ts",
+        "default": "./dist/esm/browser.js"
+      },
+      "require": {
+        "types": "./dist/cjs/browser.d.ts",
+        "default": "./dist/cjs/browser.js"
+      }
+    },
+    "./node": {
+      "import": {
+        "types": "./dist/esm/node.d.ts",
+        "default": "./dist/esm/node.js"
+      },
+      "require": {
+        "types": "./dist/cjs/node.d.ts",
+        "default": "./dist/cjs/node.js"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "src",
+    "CHANGELOG.md"
+  ],
+  "scripts": {
+    "build": "node scripts/clean.mjs && tsc -p tsconfig.esm.json && tsc -p tsconfig.cjs.json && node scripts/write-cjs-package.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "prepack": "npm run build"
+  },
+  "dependencies": {
+    "@khmerocr/client": "^0.1.0",
+    "onnxruntime-web": "1.27.0",
+    "tesseract.js": "7.0.0"
+  },
+  "peerDependencies": {
+    "onnxruntime-node": ">=1.17.0 <1.29.0",
+    "sharp": ">=0.33.0"
+  },
+  "peerDependenciesMeta": {
+    "onnxruntime-node": {
+      "optional": true
+    },
+    "sharp": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.0",
+    "onnxruntime-node": "1.27.0",
+    "sharp": "0.34.5",
+    "typescript": "5.9.3",
+    "vitest": "5.0.5"
+  }
+}
