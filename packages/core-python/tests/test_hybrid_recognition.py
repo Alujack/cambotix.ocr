@@ -95,6 +95,57 @@ def test_word_spaces_are_restored_at_wide_gaps() -> None:
     assert "".join(insert_word_spaces(["ក", "ខ", "គ"], [2, 8, 18], narrow, 25)) == "កខគ"
 
 
+CARD_TOKENS = "ក្រ .ិB"  # class i -> CARD_TOKENS[i - 1]: ក ្ រ space . ិ B
+
+
+def _card_recognizer(text: str, **kwargs) -> OnnxCtcRecognizer:
+    # A blank between classes keeps repeated characters from collapsing.
+    classes = [c for ch in text for c in (CARD_TOKENS.index(ch) + 1, 0)]
+    return OnnxCtcRecognizer(model_path=Path("rec.onnx"), tokens=CARD_TOKENS, token_offset=1,
+                             session=FakeSession(classes), **kwargs)
+
+
+@pytest.mark.parametrize("text", ["ក្រ B .្", ".្ ក្រ B", "ិ ក្រ B ្"])
+def test_edge_noise_is_dropped_and_the_read_flagged(text: str) -> None:
+    # "Bachelor .្" from a real card: the last word is a dot and a stray coeng.
+    result = _card_recognizer(text).recognize_line(_line())
+    assert result.text == "ក្រ B"
+    assert result.confidence == pytest.approx(0.5)  # below the 0.85 review threshold
+
+
+def test_clean_read_keeps_its_confidence() -> None:
+    assert _card_recognizer("ក្រ B").recognize_line(_line()).confidence == pytest.approx(
+        1.0, abs=1e-3)
+
+
+def test_punctuation_words_at_the_edges_are_kept() -> None:
+    assert _card_recognizer(". ក្រ .").recognize_line(_line()).text == ". ក្រ ."
+
+
+def test_single_word_line_is_not_dropped_as_noise() -> None:
+    assert _card_recognizer(".្").recognize_line(_line()).text == ".្"
+
+
+@pytest.mark.parametrize("text", ["ក្ ក", "ក ិក", "ក្.ក"])
+def test_impossible_khmer_sequence_gets_zero_confidence(text: str) -> None:
+    result = _card_recognizer(text).recognize_line(_line())
+    assert result.text == text  # kept as read, but never trusted
+    assert result.confidence == 0.0
+
+
+def test_confidence_calibration_maps_the_mean() -> None:
+    rec = _card_recognizer("ក្រ", confidence_calibration=[[0.0, 0.0], [0.9, 0.5], [1.0, 0.8]])
+    assert rec.recognize_line(_line()).confidence == pytest.approx(0.8, abs=1e-3)
+
+
+@pytest.mark.parametrize("points", [[[0.5, 0.5]], [[0.2, 0.1], [0.1, 0.2]],
+                                    [[0.0, 0.9], [1.0, 0.1]], [[0.0, 0.0], [1.0, 1.5]],
+                                    "bad"])
+def test_invalid_calibration_is_rejected(points) -> None:
+    with pytest.raises(ModelNotAvailableError):
+        _card_recognizer("ក", confidence_calibration=points)
+
+
 def test_router_sends_khmer_regions_to_khmer_backend() -> None:
     khmer = ScriptedRecognizer({"name_km": ("គំរូ", 0.99)})
     latin = ScriptedRecognizer({"name_latin": ("KUMRU", 0.98)})
