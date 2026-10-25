@@ -33,7 +33,7 @@ def test_tampered_weights_are_rejected(tmp_path) -> None:
 
 def test_manifest_file_list_tampering_is_rejected(tmp_path) -> None:
     bundle = make_bundle(tmp_path)
-    data = json.loads((bundle / "manifest.json").read_text())
+    data = json.loads((bundle / "manifest.json").read_text(encoding="utf-8"))
     data["files"] = []
     (bundle / "manifest.json").write_text(json.dumps(data))
     with pytest.raises(ModelNotAvailableError, match="digest"):
@@ -48,7 +48,7 @@ def test_missing_bundle_never_downloads(tmp_path, monkeypatch) -> None:
 
 def test_unknown_backend(tmp_path) -> None:
     bundle = make_bundle(tmp_path)
-    data = json.loads((bundle / "manifest.json").read_text())
+    data = json.loads((bundle / "manifest.json").read_text(encoding="utf-8"))
     data["recognizer"]["backend"] = "does-not-exist"
     (bundle / "manifest.json").write_text(json.dumps(data))
     with pytest.raises(ModelNotAvailableError, match="not installed"):
@@ -94,7 +94,7 @@ def test_install_rejects_path_traversal_archive(tmp_path) -> None:
 
 def test_manifest_cannot_reference_files_outside_bundle(tmp_path) -> None:
     bundle = make_bundle(tmp_path)
-    data = json.loads((bundle / "manifest.json").read_text())
+    data = json.loads((bundle / "manifest.json").read_text(encoding="utf-8"))
     data["files"][0]["path"] = "../outside.bin"
     from khmerocr.models import ModelFile, bundle_digest
 

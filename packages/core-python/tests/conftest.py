@@ -50,5 +50,6 @@ def make_bundle(root: Path, model_id: str = "test-model",
                     "options": {"responses": {k: list(v) for k, v in
                                               (responses or GOOD_RESPONSES).items()}}},
     )
-    (bundle / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False))
+    (bundle / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False),
+                                          encoding="utf-8")
     return bundle
