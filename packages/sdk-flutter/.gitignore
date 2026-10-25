@@ -1,0 +1,8 @@
+.dart_tool/
+build/
+pubspec.lock
+example/flutter_scanner/.dart_tool/
+example/flutter_scanner/build/
+example/flutter_scanner/pubspec.lock
+example/flutter_scanner/.flutter-plugins*
+example/flutter_scanner/.metadata

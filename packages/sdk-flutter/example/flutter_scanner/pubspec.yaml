@@ -1,0 +1,22 @@
+name: flutter_scanner
+description: Scan a Cambodian ID card with the camera and read it with KhmerOCR.
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: ^3.0.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  image_picker: ^1.1.2
+  khmerocr:
+    path: ../..
+
+dev_dependencies:
+  flutter_lints: ^5.0.0
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  uses-material-design: true
