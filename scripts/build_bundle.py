@@ -63,6 +63,9 @@ def main() -> int:
     parser.add_argument("--khmer-onnx-token-offset", type=int, default=3,
                         help="Class index of the first token (3 for seanghay/KhmerOCR, "
                              "1 for models from training/).")
+    parser.add_argument("--khmer-onnx-calibration", type=Path,
+                        help="calibration.json from training.khmer_rec.calibrate; maps the "
+                             "model's raw confidence to the share of lines read right.")
     parser.add_argument("--onnx-scripts", default="khmer",
                         help="Comma-separated region scripts routed to the ONNX model "
                              "(khmer,latin,digits,mixed). Only use more than 'khmer' for "
@@ -76,6 +79,8 @@ def main() -> int:
         parser.error(f"missing required language data: {', '.join(sorted(missing))}")
     if args.khmer_onnx and not args.khmer_onnx_source_url:
         parser.error("--khmer-onnx-source-url is required with --khmer-onnx")
+    if args.khmer_onnx_calibration and not args.khmer_onnx:
+        parser.error("--khmer-onnx-calibration requires --khmer-onnx")
     if args.out.exists():
         parser.error(f"{args.out} already exists")
 
@@ -101,12 +106,16 @@ def main() -> int:
                            "license": args.khmer_onnx_license,
                            "url": args.khmer_onnx_source_url,
                            "notes": "Confirm weights license and training data with the author."})
+        onnx_options = {
+            "model": "khmer/rec.onnx", "tokens_file": "khmer/tokens.txt",
+            "token_offset": args.khmer_onnx_token_offset, "input_height": 32,
+            "restore_spaces": True}
+        if args.khmer_onnx_calibration:
+            calibration = json.loads(args.khmer_onnx_calibration.read_text(encoding="utf-8"))
+            onnx_options["confidence_calibration"] = calibration["confidence_calibration"]
         recognizer = {"backend": "router", "options": {
             "backends": {
-                "khmer": {"backend": "onnx-ctc", "options": {
-                    "model": "khmer/rec.onnx", "tokens_file": "khmer/tokens.txt",
-                    "token_offset": args.khmer_onnx_token_offset, "input_height": 32,
-                    "restore_spaces": True}},
+                "khmer": {"backend": "onnx-ctc", "options": onnx_options},
                 "tesseract": tesseract,
             },
             # ONNX model first, Tesseract when its read fails validation.

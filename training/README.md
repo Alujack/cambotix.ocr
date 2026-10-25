@@ -27,6 +27,7 @@ not part of the installed SDK.
 | Training | `khmer_rec/train.py` | Streaming data (nothing stored on disk), width-bucketed batches, AdamW + cosine schedule. The best checkpoint is chosen on the holdout fonts. |
 | Export | `khmer_rec/export.py` | ONNX opset 17, dynamic width; verified against PyTorch with ONNX Runtime. Writes `tokens.txt` and `model_card.json`. |
 | Compare | `khmer_rec/compare.py` | Scores ONNX models on holdout-font lines through the SDK's own inference code. |
+| Calibrate | `khmer_rec/calibrate.py` | Maps the model's raw confidence (mean character probability, which stays near 0.9 even for wrong lines) to the share of holdout lines read exactly right, so the engine's 0.85 review threshold flags most wrong reads. Writes `calibration.json`. Fitted on synthetic lines, so still optimistic on real cards. |
 
 ## Run it
 
@@ -37,6 +38,7 @@ python training/fetch_corpus.py --requests 120
 python -m training.khmer_rec.train --run-name poc --minutes 90 --steps 25000
 python -m training.khmer_rec.export --run-name poc
 python -m training.khmer_rec.compare --ours training/data/runs/poc
+python -m training.khmer_rec.calibrate --run-name poc
 ```
 
 Package the result for the SDK. The `--onnx-scripts` option routes every
@@ -49,6 +51,7 @@ python scripts/build_bundle.py --model-id khmerocr-id-own \
   --khmer-onnx training/data/runs/poc/rec.onnx \
   --khmer-onnx-tokens training/data/runs/poc/tokens.txt \
   --khmer-onnx-token-offset 1 --khmer-onnx-license Apache-2.0 \
+  --khmer-onnx-calibration training/data/runs/poc/calibration.json \
   --khmer-onnx-source-url "internal: training run poc" \
   --onnx-scripts khmer,latin,digits,mixed \
   --out dist/models/khmerocr-id-own
