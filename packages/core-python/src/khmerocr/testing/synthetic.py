@@ -104,7 +104,7 @@ def render_card(identity: SyntheticIdentity | None = None,
     to_khmer = str.maketrans("0123456789", "០១២៣៤៥៦៧៨៩")
     # field: (value, printed label left of the box or None, font, size as share of card height)
     lines = {
-        "id_number": (identity.id_number, None, latin_path, 0.055),
+        "id_number": (identity.id_number, None, latin_path, 0.05),
         "full_name_km": (identity.full_name_km, "គោត្តនាមនិងនាម:", khmer_path, 0.05),
         "full_name_latin": (identity.full_name_latin, None, latin_path, 0.04),
         "date_of_birth": (identity.date_of_birth.translate(to_khmer), "ថ្ងៃខែឆ្នាំកំណើត:",
@@ -119,7 +119,8 @@ def render_card(identity: SyntheticIdentity | None = None,
         value, label, path, size = lines[spec.name]
         font = _font(path, int(height * size))
         x, y, _, h = spec.box
-        middle = int((y + h / 2) * height)
+        # The ID number sits in the upper part of its box, clear of the name line below.
+        middle = int((y + h * (0.4 if spec.name == "id_number" else 0.5)) * height)
         draw.text((int((x + 0.006) * width), middle), value, fill=ink, font=font, anchor="lm")
         if label:
             draw.text((int((x - 0.006) * width), middle), label, fill=ink, font=font, anchor="rm")

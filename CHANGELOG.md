@@ -28,6 +28,12 @@ their own changelogs in `packages/sdk-typescript` and `packages/sdk-flutter`.
 
 ### Fixed
 
+- National ID layout (`khmer_national_id_front_v1` template 0.2.0) measured
+  on a real card. The old boxes sat about two lines too low, so on real
+  cards every field was read from the wrong line. Date of birth, sex and
+  height share one line; the Latin name has no printed label.
+- Field crops no longer stretch to a speck at their edge (such as a mark
+  from the next line), which the recognizer read as extra letters.
 - Windows: Tesseract could not load bundle language data, and font license
   downloads used backslash URLs.
 - Windows: the `khmerocr` command crashed when its output, containing Khmer

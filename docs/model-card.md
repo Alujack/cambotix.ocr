@@ -64,9 +64,13 @@ flagged.
   variations the synthetic data does not cover. Expect more errors than the
   numbers above, and wrong reads that are not flagged, especially in Khmer
   addresses.
-- **Layouts.** The national ID layout is provisional and the student ID
-  layout was measured from one card design; both are marked unverified, so
-  every result has `review_required: true`.
+- **Layouts.** The national ID layout (template 0.2.0) and the student ID
+  layout were each measured from one real card; both are marked unverified,
+  so every result has `review_required: true`. The national ID layout is the
+  design with a machine-readable zone on the front; older cards may differ.
+- **Bold Khmer names.** On the one real national ID tested, the Khmer name,
+  printed in a heavy bold font, was misread; the ID number, Latin name, date
+  of birth and sex were read correctly.
 - **Calibration** was fitted on synthetic lines and is optimistic on real
   cards.
 

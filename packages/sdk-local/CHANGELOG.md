@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.1
+
+- National ID: field boxes measured on a real card (template 0.2.0). Before,
+  every field was read from the wrong line of a real card; now the ID number,
+  Latin name, date of birth and sex read correctly on a clear photo. The
+  Khmer name can still be misread and is flagged for review.
+- Field crops no longer stretch to a speck at their edge, which the
+  recognizer read as extra letters.
+
 ## 0.1.0
 
 - First release: the KhmerOCR engine in TypeScript, running in browsers
