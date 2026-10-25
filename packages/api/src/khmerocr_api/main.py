@@ -1,8 +1,9 @@
 """FastAPI application.
 
 Run with ``khmerocr serve`` or ``uvicorn khmerocr_api.main:app``. The service
-binds to 127.0.0.1 by default; it has no authentication and must not be
-exposed to untrusted networks.
+binds to 127.0.0.1 by default. Before making it reachable from other machines
+(a phone app, a browser), set ``KHMEROCR_API_KEY`` and put it behind TLS;
+``KHMEROCR_CORS_ORIGINS`` allows browser apps on the listed origins.
 """
 
 from __future__ import annotations
@@ -11,13 +12,14 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from khmerocr import KhmerOCR
 from starlette.formparsers import MultiPartParser
 
 from ._version import __version__
 from .dependencies import EngineState, Settings
 from .errors import register_error_handlers
-from .middleware import BodySizeLimitMiddleware, RequestIDMiddleware
+from .middleware import ApiKeyMiddleware, BodySizeLimitMiddleware, RequestIDMiddleware
 from .routes import documents, health, models, ocr
 
 API_PREFIX = "/v1"
@@ -60,9 +62,18 @@ def create_app(*, settings: Settings | None = None, engine: KhmerOCR | None = No
     for router in (health.router, models.router, ocr.router, documents.router):
         app.include_router(router, prefix=API_PREFIX)
 
-    # Added last = outermost: request IDs are assigned before size checks run.
+    # Added last = outermost. Request IDs are assigned first; CORS sits
+    # outside the key check so preflight requests and 401s carry CORS
+    # headers; the key is checked before the body is read.
     app.add_middleware(BodySizeLimitMiddleware,
                        max_bytes=settings.max_upload_bytes + _MULTIPART_OVERHEAD)
+    if settings.api_key is not None:
+        app.add_middleware(ApiKeyMiddleware, api_key=settings.api_key)
+    if settings.cors_origins:
+        app.add_middleware(CORSMiddleware, allow_origins=list(settings.cors_origins),
+                           allow_methods=["GET", "POST"],
+                           allow_headers=["Authorization", "X-API-Key", "X-Request-ID"],
+                           expose_headers=["X-Request-ID"], max_age=600)
     app.add_middleware(RequestIDMiddleware)
     return app
 

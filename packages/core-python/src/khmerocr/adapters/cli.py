@@ -146,6 +146,11 @@ def _serve(args: argparse.Namespace) -> None:
     # Engine logs carry codes, counts and timings only, never document content.
     logging.basicConfig(level=logging.WARNING, format="%(levelname)s:     %(name)s: %(message)s")
     os.environ["KHMEROCR_MODEL"] = args.model
+    if args.host not in {"127.0.0.1", "localhost", "::1"} and not os.environ.get(
+            "KHMEROCR_API_KEY"):
+        print(f"WARNING: serving on {args.host} without KHMEROCR_API_KEY. Anyone who can reach "
+              "this port can upload ID images. Set KHMEROCR_API_KEY and use TLS.",
+              file=sys.stderr)
     uvicorn.run("khmerocr_api.main:app", host=args.host, port=args.port, log_level="info")
 
 

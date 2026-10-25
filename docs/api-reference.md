@@ -17,6 +17,24 @@ them before sending it. A future hosted API will implement the same contract.
 | `POST` | `/documents/quality-check` | Image usability check | `quality-report.schema.json` |
 | `GET` | `/openapi.json` | OpenAPI specification | — |
 
+## Access from apps and browsers
+
+By default the service listens on 127.0.0.1 with no authentication, which is
+only safe on a single machine. Before a phone app, another server, or a
+browser can reach it:
+
+| Variable | Effect |
+| --- | --- |
+| `KHMEROCR_API_KEY` | Every endpoint except `/health` requires `Authorization: Bearer <key>` (or `X-API-Key: <key>`). At least 16 characters; generate one with `python -c "import secrets; print(secrets.token_urlsafe(32))"`. The key is checked before the upload is read. |
+| `KHMEROCR_CORS_ORIGINS` | Comma-separated browser origins allowed to call the API, e.g. `https://app.example.com,http://localhost:5173`. Only needed for browser apps (including Flutter web). |
+
+Serve over HTTPS (for example behind a reverse proxy) whenever clients are
+not on the same machine: requests carry ID images and the key. An API key
+compiled into a mobile app or shipped in browser code can be extracted, so
+public apps should call their own backend, which authenticates the user and
+then calls KhmerOCR. The [TypeScript](../packages/sdk-typescript) and
+[Dart/Flutter](../packages/sdk-flutter) clients wrap this API.
+
 ## Uploads
 
 `POST` endpoints take `multipart/form-data` with a `file` part.
@@ -108,6 +126,7 @@ Every error uses one envelope:
 | 400 | `INVALID_IMAGE` | Empty, corrupt, unsupported, or oversized image |
 | 413 | `PAYLOAD_TOO_LARGE` | Upload exceeds the limit |
 | 415 | `UNSUPPORTED_MEDIA_TYPE` | Declared type not accepted |
+| 401 | `UNAUTHORIZED` | `KHMEROCR_API_KEY` is set and the request has no valid key |
 | 422 | `INVALID_REQUEST` | Missing or invalid parameters |
 | 422 | `IMAGE_QUALITY_TOO_LOW` | Image unusable (too small, too blurry, severe glare, blank, too dark or too bright) |
 | 422 | `UNSUPPORTED_DOCUMENT` | Unsupported document type or template |

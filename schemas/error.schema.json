@@ -20,6 +20,7 @@
             "UNSUPPORTED_MEDIA_TYPE",
             "PAYLOAD_TOO_LARGE",
             "INVALID_REQUEST",
+            "UNAUTHORIZED",
             "NOT_FOUND",
             "INTERNAL_ERROR"
           ]
