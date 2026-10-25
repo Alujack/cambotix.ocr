@@ -3,12 +3,26 @@ requires = ["hatchling>=1.24"]
 build-backend = "hatchling.build"
 
 [project]
-name = "khmerocr"
+name = "cambotix-ocr"
 dynamic = ["version"]
 description = "Local-first Khmer/English OCR SDK with Cambodian National ID field extraction."
 readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.10"
+authors = [{ name = "Yoeurn Yan" }]
+keywords = ["ocr", "khmer", "cambodia", "id-card", "kyc", "tesseract", "onnx"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Natural Language :: English",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Image Recognition",
+    "Typing :: Typed",
+]
 dependencies = [
     "numpy>=1.24",
     "pillow>=10.1",
@@ -21,6 +35,12 @@ tesseract = ["pytesseract>=0.3.10"]
 # even when disabled; see docs/privacy.md before raising this bound.
 onnx = ["onnxruntime>=1.17,<1.29"]
 validation = ["jsonschema>=4.22"]
+
+[project.urls]
+Homepage = "https://github.com/Alujack/cambotix.ocr"
+Documentation = "https://github.com/Alujack/cambotix.ocr/tree/master/docs"
+Issues = "https://github.com/Alujack/cambotix.ocr/issues"
+Changelog = "https://github.com/Alujack/cambotix.ocr/blob/master/CHANGELOG.md"
 
 [project.scripts]
 khmerocr = "khmerocr.adapters.cli:main"

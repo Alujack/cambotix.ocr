@@ -40,7 +40,7 @@ def validate(instance: dict[str, Any], name: str) -> None:
     """Validate ``instance`` against a bundled schema.
 
     Requires the optional ``jsonschema`` dependency
-    (``pip install "khmerocr[validation]"``). Raises
+    (``pip install "cambotix-ocr[validation]"``). Raises
     ``jsonschema.ValidationError`` on failure.
     """
     import jsonschema

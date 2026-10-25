@@ -3,19 +3,35 @@ requires = ["hatchling>=1.24"]
 build-backend = "hatchling.build"
 
 [project]
-name = "khmerocr-api"
+name = "cambotix-ocr-api"
 dynamic = ["version"]
 description = "Local REST API for the KhmerOCR engine."
 readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.10"
+authors = [{ name = "Yoeurn Yan" }]
+keywords = ["ocr", "khmer", "cambodia", "id-card", "rest-api", "fastapi"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Framework :: FastAPI",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Image Recognition",
+]
 dependencies = [
-    "khmerocr[validation]",
+    "cambotix-ocr[validation]",
     "fastapi>=0.115",
     "uvicorn>=0.30",
     "python-multipart>=0.0.9",
     "anyio>=4",
 ]
+
+[project.urls]
+Homepage = "https://github.com/Alujack/cambotix.ocr"
+Documentation = "https://github.com/Alujack/cambotix.ocr/blob/master/docs/api-reference.md"
+Issues = "https://github.com/Alujack/cambotix.ocr/issues"
+Changelog = "https://github.com/Alujack/cambotix.ocr/blob/master/CHANGELOG.md"
 
 [tool.hatch.version]
 path = "src/khmerocr_api/_version.py"

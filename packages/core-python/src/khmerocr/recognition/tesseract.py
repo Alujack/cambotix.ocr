@@ -1,7 +1,7 @@
 """Tesseract recognizer backend.
 
 Requires the ``tesseract`` binary (4.1+) and the ``pytesseract`` package
-(``pip install "khmerocr[tesseract]"``). Language data (``khm.traineddata``,
+(``pip install "cambotix-ocr[tesseract]"``). Language data (``khm.traineddata``,
 ``eng.traineddata``) is read only from the model bundle's ``tessdata``
 directory, never from a system-wide location, so results are reproducible and
 pinned by the bundle checksum.
@@ -48,7 +48,7 @@ class TesseractRecognizer(Recognizer):
         except ImportError as exc:
             raise ModelNotAvailableError(
                 "The tesseract backend requires the 'pytesseract' package: "
-                "pip install 'khmerocr[tesseract]'."
+                "pip install 'cambotix-ocr[tesseract]'."
             ) from exc
         self._pytesseract: Any = pytesseract
         cmd = os.environ.get("KHMEROCR_TESSERACT_CMD")
