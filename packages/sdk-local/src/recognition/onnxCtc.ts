@@ -41,6 +41,8 @@ const CLEANED_CONFIDENCE = 0.5;
 // left out: recognizers read a printed ":" as ៈ, often after a space.
 const isKhmerDependent = (cp: number) =>
   (cp >= 0x17b6 && cp < 0x17c8) || (cp >= 0x17c9 && cp < 0x17d2) || cp === 0x17d3 || cp === 0x17dd;
+// Dependent vowels ា .. ៅ.
+const isKhmerVowel = (cp: number) => cp >= 0x17b6 && cp < 0x17c6;
 
 export interface OnnxCtcOptions {
   modelFile: string;
@@ -220,8 +222,9 @@ export function dropEdgeNoise(chars: string[], scores: Array<number | null>):
 
 /**
  * False when the text has a Khmer sequence no correctly read word can
- * contain: a coeng not between a base letter and a consonant, or a dependent
- * vowel or sign with no Khmer character before it.
+ * contain: a coeng not between a base letter and a consonant, a dependent
+ * vowel or sign with no Khmer letter or mark before it (a digit or
+ * punctuation does not count), or two dependent vowels in a row.
  */
 export function khmerStructureValid(text: string): boolean {
   const cps = Array.from(text).map((ch) => ch.codePointAt(0)!);
@@ -231,7 +234,9 @@ export function khmerStructureValid(text: string): boolean {
     if (cp === 0x17d2) {
       const next = i + 1 < cps.length ? cps[i + 1]! : null;
       if (prev === null || !isKhmerBase(prev) || next === null || !isKhmerConsonant(next)) return false;
-    } else if (isKhmerDependent(cp) && (prev === null || !(prev >= 0x1780 && prev <= 0x17ff))) {
+    } else if (isKhmerDependent(cp) && (prev === null || !(prev >= 0x1780 && prev <= 0x17d3))) {
+      return false;
+    } else if (isKhmerVowel(cp) && prev !== null && isKhmerVowel(prev)) {
       return false;
     }
   }

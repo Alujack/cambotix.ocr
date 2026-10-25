@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import date
 
+import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 from khmerocr.validation import (
@@ -68,6 +69,19 @@ def test_khmer_name_requires_khmer_script() -> None:
     assert normalize_khmer_name("គំរូ សាកល្បង", {}).valid
     latin = normalize_khmer_name("SOK", {})
     assert latin.value is None and "invalid_script" in latin.warnings
+
+
+@pytest.mark.parametrize("text", ["យឿុខ ៥ោខ", "សុខ ១២", "សុខ។", "ាសុខ"])
+def test_khmer_name_with_impossible_characters_is_invalid(text: str) -> None:
+    # "យឿុខ ៥ោខ" is a real misread of a bold printed name: a digit and two
+    # vowel signs in a row.
+    result = normalize_khmer_name(text, {})
+    assert result.value == text and not result.valid
+    assert "invalid_format" in result.warnings
+
+
+def test_khmer_name_with_register_shifter_is_valid() -> None:
+    assert normalize_khmer_name("យឿន យ៉ាន", {}).valid
 
 
 def test_latin_name_is_uppercased_and_validated() -> None:

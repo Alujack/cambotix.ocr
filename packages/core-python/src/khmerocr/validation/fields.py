@@ -26,6 +26,10 @@ _DIGIT_CONFUSIONS = str.maketrans({"O": "0", "o": "0", "D": "0", "I": "1", "l": 
                                    "|": "1", "S": "5", "B": "8", "Z": "2"})
 _LATIN_NAME = re.compile(r"^[A-Z][A-Z' -]*[A-Z]$")
 _NON_KHMER_NAME = re.compile(r"[^\u1780-\u17FF\u19E0-\u19FF ]")
+# Never in a correctly read name: Khmer digits, punctuation or symbols, two
+# vowel signs in a row, or a word that starts with a vowel sign or mark.
+_IMPOSSIBLE_KHMER_NAME = re.compile(
+    r"[\u17D4-\u17FF\u19E0-\u19FF]|[\u17B6-\u17C5]{2}|(?:^| )[\u17B6-\u17D3]")
 
 
 @dataclass
@@ -56,6 +60,8 @@ def normalize_khmer_name(text: str, spec: dict[str, Any]) -> Normalized:
         return Normalized(None, False, ["invalid_script"] if text else [])
     cleaned = normalize_text(_NON_KHMER_NAME.sub(" ", text))
     warnings = [] if cleaned == text else ["non_khmer_characters_removed"]
+    if cleaned and _IMPOSSIBLE_KHMER_NAME.search(cleaned):
+        return Normalized(cleaned, False, [*warnings, "invalid_format"])
     return Normalized(cleaned or None, bool(cleaned), warnings)
 
 

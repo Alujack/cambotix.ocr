@@ -95,14 +95,14 @@ def test_word_spaces_are_restored_at_wide_gaps() -> None:
     assert "".join(insert_word_spaces(["ក", "ខ", "គ"], [2, 8, 18], narrow, 25)) == "កខគ"
 
 
-CARD_TOKENS = "ក្រ .ិB"  # class i -> CARD_TOKENS[i - 1]: ក ្ រ space . ិ B
+CARD_TOKENS = "ក្រ .ិBាុ៥"  # class i -> CARD_TOKENS[i - 1]: ក ្ រ space . ិ B ា ុ ៥
 
 
 def _card_recognizer(text: str, **kwargs) -> OnnxCtcRecognizer:
     # A blank between classes keeps repeated characters from collapsing.
     classes = [c for ch in text for c in (CARD_TOKENS.index(ch) + 1, 0)]
     return OnnxCtcRecognizer(model_path=Path("rec.onnx"), tokens=CARD_TOKENS, token_offset=1,
-                             session=FakeSession(classes), **kwargs)
+                             session=FakeSession(classes, n_classes=len(CARD_TOKENS) + 1), **kwargs)
 
 
 @pytest.mark.parametrize("text", ["ក្រ B .្", ".្ ក្រ B", "ិ ក្រ B ្"])
@@ -126,7 +126,7 @@ def test_single_word_line_is_not_dropped_as_noise() -> None:
     assert _card_recognizer(".្").recognize_line(_line()).text == ".្"
 
 
-@pytest.mark.parametrize("text", ["ក្ ក", "ក ិក", "ក្.ក"])
+@pytest.mark.parametrize("text", ["ក្ ក", "ក ិក", "ក្.ក", "ក៥ា", "កាុ"])
 def test_impossible_khmer_sequence_gets_zero_confidence(text: str) -> None:
     result = _card_recognizer(text).recognize_line(_line())
     assert result.text == text  # kept as read, but never trusted

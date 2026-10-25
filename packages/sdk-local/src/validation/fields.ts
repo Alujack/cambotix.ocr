@@ -21,6 +21,9 @@ const DIGIT_CONFUSIONS: Readonly<Record<string, string>> = {
 };
 const LATIN_NAME = /^[A-Z][A-Z' -]*[A-Z]$/u;
 const NON_KHMER_NAME = /[^ក-៿᧠-᧿ ]/gu;
+// Never in a correctly read name: Khmer digits, punctuation or symbols, two
+// vowel signs in a row, or a word that starts with a vowel sign or mark.
+const IMPOSSIBLE_KHMER_NAME = /[។-៿᧠-᧿]|[ា-ៅ]{2}|(?:^| )[ា-៓]/u;
 
 export interface Normalized {
   value: string | null;
@@ -57,6 +60,9 @@ export function normalizeKhmerName(text: string): Normalized {
   if (!containsKhmer(text)) return result(null, false, text ? ["invalid_script"] : []);
   const cleaned = normalizeText(text.replace(NON_KHMER_NAME, " "));
   const warnings = cleaned === text ? [] : ["non_khmer_characters_removed"];
+  if (cleaned && IMPOSSIBLE_KHMER_NAME.test(cleaned)) {
+    return result(cleaned, false, [...warnings, "invalid_format"]);
+  }
   return result(cleaned || null, Boolean(cleaned), warnings);
 }
 

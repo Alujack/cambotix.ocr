@@ -71,6 +71,7 @@ _CLEANED_CONFIDENCE = 0.5
 # Dependent vowels and signs that must follow a Khmer letter. U+17C8 (ៈ) is
 # left out: recognizers read a printed ":" as ៈ, often after a space.
 _KHMER_DEPENDENT = frozenset([*range(0x17B6, 0x17C8), *range(0x17C9, 0x17D2), 0x17D3, 0x17DD])
+_KHMER_VOWELS = range(0x17B6, 0x17C6)  # dependent vowels ា .. ៅ
 
 
 class OnnxCtcRecognizer(Recognizer):
@@ -236,15 +237,18 @@ def drop_edge_noise(chars: list[str],
 
 def khmer_structure_valid(text: str) -> bool:
     """False when the text has a Khmer sequence no correctly read word can
-    contain: a coeng (្) not between a base letter and a consonant, or a
-    dependent vowel or sign with no Khmer character before it."""
+    contain: a coeng (្) not between a base letter and a consonant, a
+    dependent vowel or sign with no Khmer letter or mark before it (a digit or
+    punctuation does not count), or two dependent vowels in a row."""
     for i, ch in enumerate(text):
         prev = ord(text[i - 1]) if i else None
         if ch == _COENG:
             nxt = ord(text[i + 1]) if i + 1 < len(text) else None
             if prev not in _KHMER_BASES or nxt not in _KHMER_CONSONANTS:
                 return False
-        elif ord(ch) in _KHMER_DEPENDENT and (prev is None or not 0x1780 <= prev <= 0x17FF):
+        elif ord(ch) in _KHMER_DEPENDENT and (prev is None or not 0x1780 <= prev <= 0x17D3):
+            return False
+        elif ord(ch) in _KHMER_VOWELS and prev in _KHMER_VOWELS:
             return False
     return True
 

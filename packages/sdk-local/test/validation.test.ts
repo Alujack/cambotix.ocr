@@ -82,6 +82,19 @@ describe("field normalizers", () => {
     expect(latin.warnings).toContain("invalid_script");
   });
 
+  it.each(["យឿុខ ៥ោខ", "សុខ ១២", "សុខ។", "ាសុខ"])("rejects impossible Khmer names (%s)", (text) => {
+    // "យឿុខ ៥ោខ" is a real misread of a bold printed name: a digit and two
+    // vowel signs in a row.
+    const result = normalizeKhmerName(text);
+    expect(result.value).toBe(text);
+    expect(result.valid).toBe(false);
+    expect(result.warnings).toContain("invalid_format");
+  });
+
+  it("accepts Khmer names with a register shifter", () => {
+    expect(normalizeKhmerName("យឿន យ៉ាន").valid).toBe(true);
+  });
+
   it("uppercases and validates Latin names", () => {
     expect(normalizeLatinName("kumru sakalbang").value).toBe("KUMRU SAKALBANG");
     expect(normalizeLatinName("SOK 123").valid).toBe(false);

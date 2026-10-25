@@ -21,7 +21,7 @@ function line(width = 120, height = 40): Raster {
   return image;
 }
 
-const CARD_TOKENS = "ក្រ .ិB"; // class i -> CARD_TOKENS[i - 1]: ក ្ រ space . ិ B
+const CARD_TOKENS = "ក្រ .ិBាុ៥"; // class i -> CARD_TOKENS[i - 1]: ក ្ រ space . ិ B ា ុ ៥
 
 /** A recognizer whose model "reads" `text`; a blank between classes keeps repeats apart. */
 function cardRecognizer(text: string, calibration: unknown = null): OnnxCtcRecognizer {
@@ -90,7 +90,7 @@ describe("ONNX CTC recognizer", () => {
     expect((await cardRecognizer(".្").recognizeLine(line())).text).toBe(".្");
   });
 
-  it.each(["ក្ ក", "ក ិក", "ក្.ក"])("gives impossible Khmer sequences zero confidence (%s)", async (text) => {
+  it.each(["ក្ ក", "ក ិក", "ក្.ក", "ក៥ា", "កាុ"])("gives impossible Khmer sequences zero confidence (%s)", async (text) => {
     const result = await cardRecognizer(text).recognizeLine(line());
     expect(result.text).toBe(text); // kept as read, but never trusted
     expect(result.confidence).toBe(0);
