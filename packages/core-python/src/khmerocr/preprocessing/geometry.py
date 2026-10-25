@@ -96,7 +96,7 @@ def order_quad(points: NDArray[Any]) -> NDArray[np.float32]:
                      pts[np.argmax(sums)], pts[np.argmax(diffs)]], dtype=np.float32)
 
 
-def _candidate_masks(gray: np.ndarray) -> list[np.ndarray]:
+def _candidate_masks(gray: NDArray[Any]) -> list[NDArray[Any]]:
     edges = cv2.Canny(gray, 40, 120)
     edges = cv2.dilate(edges, np.ones((3, 3), np.uint8), iterations=2)
     edges = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, np.ones((7, 7), np.uint8))
@@ -104,7 +104,7 @@ def _candidate_masks(gray: np.ndarray) -> list[np.ndarray]:
     return [edges, otsu, cv2.bitwise_not(otsu)]
 
 
-def _largest_card_quad(mask: np.ndarray, image_area: int) -> NDArray[np.float32] | None:
+def _largest_card_quad(mask: NDArray[Any], image_area: int) -> NDArray[np.float32] | None:
     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     for contour in sorted(contours, key=cv2.contourArea, reverse=True)[:5]:
         contour_area = cv2.contourArea(contour)

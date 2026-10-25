@@ -75,8 +75,8 @@ def decode_image_bytes(data: bytes, *, max_bytes: int, max_pixels: int) -> Image
             with Image.open(io.BytesIO(data), formats=[fmt]) as img:
                 _check_pixels(img.width, img.height, max_pixels)
                 img.load()
-                img = ImageOps.exif_transpose(img) or img
-                rgb = img.convert("RGB")
+                upright = ImageOps.exif_transpose(img) or img
+                rgb = upright.convert("RGB")
     except InvalidImageError:
         raise
     except (OSError, SyntaxError, ValueError, Image.DecompressionBombError,
