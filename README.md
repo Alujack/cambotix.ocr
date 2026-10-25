@@ -4,11 +4,30 @@ A local-first developer toolkit for Khmer and English text recognition and
 Cambodian National ID field extraction. It runs fully offline: no cloud
 dependency, no API fees, and no document data leaves the machine.
 
-> **Status: alpha (0.1.0a1).** The software pipeline is built and tested. The
-> recognition model has **not** been selected yet (see
-> [model licensing](docs/model-licensing.md)), and the ID layout template is
-> **provisional**: it has not been confirmed against authorized reference
-> cards. Until both are done, every ID result is marked `review_required`.
+> **Status: alpha (0.1.0a1), experimental.** The software pipeline is built
+> and tested. The first model bundle, `khmerocr-id-v1` 0.1.0, is trained here
+> on synthetic data only and has been checked on one real card (see the
+> [model card](docs/model-card.md)). The card layouts are **provisional**:
+> they have not been confirmed against authorized reference cards. Every ID
+> result is marked `review_required`; have a person check it before use.
+
+## Quick start
+
+```bash
+pip install "cambotix-ocr[tesseract,onnx]" cambotix-ocr-api
+```
+
+Install [Tesseract](https://tesseract-ocr.github.io/tessdoc/Installation.html)
+(the engine only; language data ships in the bundle), then download
+`khmerocr-id-v1-0.1.0.tar.gz` from the
+[releases page](https://github.com/Alujack/cambotix.ocr/releases), check it
+against its `.sha256` file, and install it. The SDK never downloads models
+itself.
+
+```bash
+khmerocr models install khmerocr-id-v1 --from khmerocr-id-v1-0.1.0.tar.gz
+khmerocr extract-id national-id.jpg --model khmerocr-id-v1
+```
 
 ## What it does
 
@@ -34,20 +53,21 @@ dependency, no API fees, and no document data leaves the machine.
   on the server; the apps send the photo and get typed fields back.
 
 ```python
-from pathlib import Path
 from khmerocr import KhmerOCR
 
-ocr = KhmerOCR.from_pretrained(model_dir="./models/khmerocr-v1")
-result = ocr.extract_id(Path("national-id.jpg"))
+ocr = KhmerOCR.from_pretrained("khmerocr-id-v1")
+result = ocr.extract_id("national-id.jpg")
 
 print(result.fields["id_number"].value)
 print(result.review_required)
 ```
 
-The best current configuration is a **hybrid bundle**. Khmer text is read
-by the [seanghay/KhmerOCR](https://github.com/seanghay/KhmerOCR) recognizer
-(93% exact on synthetic Khmer names, against 58% for Tesseract); Latin text
-and digits are read by Tesseract. See [model licensing](docs/model-licensing.md).
+The `khmerocr-id-v1` bundle reads every field with a recognizer trained in
+[`training/`](training) from OFL fonts and Khmer Wikipedia text (1.1%
+character error rate on lines in fonts it never saw), with Tesseract as the
+fallback, all under Apache-2.0. Other recognizers, such as
+[seanghay/KhmerOCR](https://github.com/seanghay/KhmerOCR), can be bundled
+too; see [model licensing](docs/model-licensing.md).
 
 Field mapping is deterministic. No language model guesses or completes
 identity fields.
@@ -75,7 +95,7 @@ packages/core-python/   khmerocr: engine (no FastAPI/DB/cloud dependencies)
     jsonschema/         bundled JSON Schemas (source of truth)
     adapters/cli.py     `khmerocr` command
     testing/            scripted recognizer + synthetic SPECIMEN cards
-packages/api/           khmerocr-api: thin FastAPI layer (/v1)
+packages/api/           cambotix-ocr-api: thin FastAPI layer (/v1)
 packages/sdk-typescript/  @khmerocr/client: TypeScript client for /v1 (not published)
 packages/sdk-flutter/     khmerocr: Dart/Flutter client + camera scanner example (not published)
 schemas/                JSON Schemas for non-Python consumers
@@ -117,6 +137,9 @@ it.
 
 - [Installation](docs/installation.md)
 - [REST API reference](docs/api-reference.md)
+- [Model card: khmerocr-id-v1](docs/model-card.md)
+- [Contributing](CONTRIBUTING.md) and [security policy](SECURITY.md)
+- [Changelog](CHANGELOG.md)
 - [Security and privacy](docs/privacy.md)
 - [Model selection and licensing](docs/model-licensing.md)
 

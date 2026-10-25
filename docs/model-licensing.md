@@ -59,8 +59,8 @@ Bundle `recognizer.backend = "router"`:
   validation, Tesseract reads the region instead (`fallback_recognizer:<field>`
   warning).
 - **Latin, digit, and mixed regions:** Tesseract only. The Khmer model must
-  never see these: on a real card it read `04/02/2002` as Khmer digits
-  `០៨០២១២០០២` with 0.94 confidence.
+  never see these: on a real card it read a Latin-digit date such as
+  `DD/MM/YYYY` as a string of Khmer digits, with 0.94 confidence.
 
 The Khmer model has no space token. Word spaces are restored from wide blank
 gaps in the line image.
