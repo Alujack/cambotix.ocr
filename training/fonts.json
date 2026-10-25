@@ -3,6 +3,7 @@
   "commit": "e7db6ca603fd4862010383ff17ffd6cc4ffac1c0",
   "license": "OFL-1.1 (each family directory ships its OFL.txt)",
   "holdout_note": "Fonts marked holdout are never used for training; they measure generalization to unseen typefaces.",
+  "heading_note": "Fonts marked heading are in the Muol style that Cambodian ID cards print names in; name lines use them more often.",
   "fonts": [
     {"path": "ofl/angkor/Angkor-Regular.ttf", "script": "khmer"},
     {"path": "ofl/battambang/Battambang-Regular.ttf", "script": "khmer"},
@@ -22,7 +23,7 @@
     {"path": "ofl/khmer/Khmer.ttf", "script": "khmer"},
     {"path": "ofl/koulen/Koulen-Regular.ttf", "script": "khmer"},
     {"path": "ofl/metal/Metal-Regular.ttf", "script": "khmer"},
-    {"path": "ofl/moul/Moul-Regular.ttf", "script": "khmer"},
+    {"path": "ofl/moul/Moul-Regular.ttf", "script": "khmer", "heading": true},
     {"path": "ofl/moulpali/Moulpali-Regular.ttf", "script": "khmer"},
     {"path": "ofl/nokora/Nokora[wght].ttf", "script": "khmer", "variable": true},
     {"path": "ofl/notosanskhmer/NotoSansKhmer[wdth,wght].ttf", "script": "khmer", "variable": true},

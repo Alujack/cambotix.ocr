@@ -1,4 +1,5 @@
-"""Compare ONNX line recognizers on synthetic lines rendered with holdout fonts.
+"""Compare ONNX line recognizers on synthetic lines rendered with holdout fonts,
+and on Khmer names in the Muol-style (training) fonts ID cards print names in.
 
 Both models run through the SDK's ``OnnxCtcRecognizer`` (same cropping and
 decoding as in production). Khmer-only models are scored on the Khmer-only
@@ -54,11 +55,14 @@ def main() -> int:
 
     samples = fixed_set(TRAINING_DIR, size=args.size, seed=30_003, holdout=True)
     khmer = [s for s in samples if _khmer_only(s[1])]
+    names = fixed_set(TRAINING_DIR, size=args.size // 3, seed=50_005, holdout=False,
+                      card_names=True)
     ours = OnnxCtcRecognizer(model_path=args.ours / "rec.onnx",
                              tokens=(args.ours / "tokens.txt").read_text(encoding="utf-8")
                              .rstrip("\n"), token_offset=1, restore_spaces=False)
     report = {"holdout_fonts": True,
-              "ours": {"all_lines": score(ours, samples), "khmer_only": score(ours, khmer)}}
+              "ours": {"all_lines": score(ours, samples), "khmer_only": score(ours, khmer),
+                       "card_names": score(ours, names)}}
     if args.seanghay and args.seanghay_tokens:
         theirs = OnnxCtcRecognizer(
             model_path=args.seanghay,

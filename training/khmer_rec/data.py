@@ -17,6 +17,10 @@ from .vocab import encode, is_supported
 
 # CNN down-samples width by 4: one CTC time step per 4 input columns.
 WIDTH_STRIDE = 4
+# Share of training lines that are a Khmer name on its own, as cropped from a
+# card's name field, and how often those use a Muol-style font.
+NAME_LINE_RATE = 0.15
+NAME_HEADING_RATE = 0.6
 
 Sample = tuple[np.ndarray, str]
 
@@ -28,10 +32,13 @@ def ctc_feasible(width: int, label: str) -> bool:
 
 
 class SyntheticLines(IterableDataset[Sample]):
-    def __init__(self, training_dir: Path, *, seed: int, holdout: bool = False) -> None:
+    def __init__(self, training_dir: Path, *, seed: int, holdout: bool = False,
+                 card_names: bool = False) -> None:
+        """``card_names`` yields only Khmer names in Muol-style fonts."""
         self.training_dir = training_dir
         self.seed = seed
         self.holdout = holdout
+        self.card_names = card_names
 
     def __iter__(self) -> Iterator[Sample]:
         info = get_worker_info()
@@ -41,10 +48,14 @@ class SyntheticLines(IterableDataset[Sample]):
         renderer = LineRenderer(khmer, latin, rng)
         texts = TextSampler(self.training_dir / "data" / "corpus" / "kmwiki.txt", rng)
         while True:
-            text = texts.sample()
+            if self.card_names or rng.random() < NAME_LINE_RATE:
+                text = texts.card_name()
+                heading = self.card_names or rng.random() < NAME_HEADING_RATE
+            else:
+                text, heading = texts.sample(), False
             if not text or not is_supported(text):
                 continue
-            image = renderer.render(text)
+            image = renderer.render(text, heading=heading)
             if image is None or not ctc_feasible(image.shape[1], text):
                 continue
             yield image, text
@@ -64,9 +75,11 @@ def bucketed(samples: Iterator[Sample], batch_size: int,
             yield from batches
 
 
-def fixed_set(training_dir: Path, *, size: int, seed: int, holdout: bool) -> list[Sample]:
+def fixed_set(training_dir: Path, *, size: int, seed: int, holdout: bool,
+              card_names: bool = False) -> list[Sample]:
     """A reproducible evaluation set (rendered once, kept in memory)."""
-    stream = iter(SyntheticLines(training_dir, seed=seed, holdout=holdout))
+    stream = iter(SyntheticLines(training_dir, seed=seed, holdout=holdout,
+                                 card_names=card_names))
     return [next(stream) for _ in range(size)]
 
 

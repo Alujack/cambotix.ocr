@@ -119,6 +119,17 @@ class TextSampler:
             return f"{surname[1]} {given[1]}"
         return f"{surname[0]} {given[0]} / {surname[1]} {given[1]}"
 
+    def card_name(self) -> str:
+        """A Khmer-only name as printed on the card: two or three words, half
+        from the composite name lists and half made of syllables in the
+        patterns Khmer names use, so unlisted names are seen too."""
+        rng = self.rng
+        if rng.random() < 0.5:
+            return f"{rng.choice(SURNAMES)[0]} {rng.choice(GIVEN)[0]}"
+        words = 2 if rng.random() < 0.85 else 3
+        return " ".join("".join(_name_syllable(rng) for _ in range(rng.choice([1, 1, 1, 2])))
+                        for _ in range(words))
+
     def _id_line(self) -> str:
         rng = self.rng
         kind = rng.randrange(8)
@@ -184,6 +195,27 @@ class TextSampler:
         return "".join(parts)
 
 
+def _name_syllable(rng: random.Random) -> str:
+    """Onset, optional subscript, optional register shifter, vowel, and an
+    optional final consonant or sign, in Unicode storage order (យ៉ាន, សុខ)."""
+    syllable = rng.choice(_CONSONANTS)
+    if rng.random() < 0.2:
+        syllable += _COENG + rng.choice(_NAME_SUBSCRIPTS)
+    if rng.random() < 0.15:
+        syllable += rng.choice("៉៊")
+    if rng.random() < 0.85:
+        syllable += rng.choice(_NAME_VOWELS)
+    r = rng.random()
+    if r < 0.55:
+        syllable += rng.choice(_NAME_FINALS) + ("់" if rng.random() < 0.15 else "")
+    elif r < 0.65:
+        syllable += rng.choice("ំះ")
+    return syllable
+
+
+_NAME_SUBSCRIPTS = "កខងចញតទនបពមយរលវស"
+_NAME_VOWELS = "ាិីឹឺុូួើឿៀេែៃោៅ"
+_NAME_FINALS = "កងចញណតនបមយលវស"
 _CONSONANTS = "".join(chr(c) for c in range(0x1780, 0x17A3))
 _BASES = _CONSONANTS + "".join(chr(c) for c in range(0x17A3, 0x17B4) if chr(c) in KHMER)
 _STANDALONE = "០១២៣៤៥៦៧៨៩។៕៖ៗ៛"

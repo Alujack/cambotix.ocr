@@ -71,9 +71,9 @@ def test_khmer_name_requires_khmer_script() -> None:
     assert latin.value is None and "invalid_script" in latin.warnings
 
 
-@pytest.mark.parametrize("text", ["យឿុខ ៥ោខ", "សុខ ១២", "សុខ។", "ាសុខ"])
+@pytest.mark.parametrize("text", ["សៀុខ ៥ៅក", "សុខ ១២", "សុខ។", "ាសុខ"])
 def test_khmer_name_with_impossible_characters_is_invalid(text: str) -> None:
-    # "យឿុខ ៥ោខ" is a real misread of a bold printed name: a digit and two
+    # Shaped like a real misread of a bold printed name: a digit and two
     # vowel signs in a row.
     result = normalize_khmer_name(text, {})
     assert result.value == text and not result.valid
@@ -81,7 +81,7 @@ def test_khmer_name_with_impossible_characters_is_invalid(text: str) -> None:
 
 
 def test_khmer_name_with_register_shifter_is_valid() -> None:
-    assert normalize_khmer_name("យឿន យ៉ាន", {}).valid
+    assert normalize_khmer_name("សុខ ម៉ៅ", {}).valid
 
 
 def test_latin_name_is_uppercased_and_validated() -> None:

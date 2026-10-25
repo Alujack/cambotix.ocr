@@ -2,10 +2,14 @@
 
     python -m training.khmer_rec.train --run-name poc --minutes 60
 
-Two fixed evaluation sets are rendered at start-up: one with training fonts
-and one with *holdout* fonts the model never sees, which measures
-generalization to unseen typefaces. The best checkpoint is chosen on the
-holdout set.
+Three fixed evaluation sets are rendered at start-up: one with training
+fonts, one with *holdout* fonts the model never sees, which measures
+generalization to unseen typefaces, and one of Khmer names in the Muol-style
+fonts ID cards print names in. The best checkpoint is chosen on the holdout
+and card-name sets together.
+
+Fine-tune an earlier run (new optimizer and schedule) with
+``--init training/data/runs/poc/best.pt``.
 """
 
 from __future__ import annotations
@@ -71,6 +75,7 @@ def main() -> int:
     parser.add_argument("--val-size", type=int, default=600)
     parser.add_argument("--seed", type=int, default=13)
     parser.add_argument("--resume", type=Path)
+    parser.add_argument("--init", type=Path, help="Start from these model weights only.")
     args = parser.parse_args()
 
     device = torch.device("cuda" if torch.cuda.is_available()
@@ -99,12 +104,16 @@ def main() -> int:
         optimizer.load_state_dict(state["optimizer"])
         scheduler.load_state_dict(state["scheduler"])
         step, best_cer = state["step"], state.get("best_cer", best_cer)
+    elif args.init:
+        model.load_state_dict(torch.load(args.init, map_location=device)["model"])
 
     print(f"device={device} params={sum(p.numel() for p in model.parameters()) / 1e6:.2f}M "
           f"classes={NUM_CLASSES}", flush=True)
     t0 = time.perf_counter()
     val_seen = fixed_set(TRAINING_DIR, size=args.val_size, seed=10_001, holdout=False)
     val_holdout = fixed_set(TRAINING_DIR, size=args.val_size, seed=20_002, holdout=True)
+    val_names = fixed_set(TRAINING_DIR, size=args.val_size, seed=40_004, holdout=False,
+                          card_names=True)
     print(f"validation sets rendered in {time.perf_counter() - t0:.1f}s", flush=True)
 
     # Workers render single lines; the main process buckets them by width.
@@ -143,24 +152,27 @@ def main() -> int:
         if step % args.eval_every == 0 or done:
             seen = evaluate(model, val_seen, device)
             holdout = evaluate(model, val_holdout, device)
+            names = evaluate(model, val_names, device)
+            score = (holdout["cer"] + names["cer"]) / 2
             record = {"step": step, "time_min": round((time.monotonic() - deadline) / 60
                                                       + args.minutes, 2),
-                      "seen_fonts": seen, "holdout_fonts": holdout}
+                      "seen_fonts": seen, "holdout_fonts": holdout, "card_names": names}
             log.write(json.dumps(record) + "\n")
             log.flush()
             print(f"eval step {step}: seen CER {seen['cer']:.4f} acc {seen['line_accuracy']:.3f} | "
-                  f"holdout CER {holdout['cer']:.4f} acc {holdout['line_accuracy']:.3f}",
+                  f"holdout CER {holdout['cer']:.4f} acc {holdout['line_accuracy']:.3f} | "
+                  f"names CER {names['cer']:.4f} acc {names['line_accuracy']:.3f}",
                   flush=True)
             state = {"model": model.state_dict(), "optimizer": optimizer.state_dict(),
                      "scheduler": scheduler.state_dict(), "step": step,
-                     "best_cer": min(best_cer, holdout["cer"]), "num_classes": NUM_CLASSES}
+                     "best_cer": min(best_cer, score), "num_classes": NUM_CLASSES}
             torch.save(state, run_dir / "last.pt")
-            if holdout["cer"] < best_cer:
-                best_cer = holdout["cer"]
+            if score < best_cer:
+                best_cer = score
                 torch.save(state, run_dir / "best.pt")
         if done:
             break
-    print(f"finished at step {step}; best holdout CER {best_cer:.4f}", flush=True)
+    print(f"finished at step {step}; best holdout and name CER {best_cer:.4f}", flush=True)
     return 0
 
 

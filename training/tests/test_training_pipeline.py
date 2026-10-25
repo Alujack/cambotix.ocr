@@ -55,6 +55,16 @@ def test_text_sampler_yields_supported_text() -> None:
         assert text and is_supported(text) and text == normalize_label(text)
 
 
+def test_card_names_are_well_formed_khmer() -> None:
+    from khmerocr.recognition.onnx_ctc import khmer_structure_valid
+
+    sampler = TextSampler(None, random.Random(0))
+    for _ in range(500):
+        name = sampler.card_name()
+        assert is_supported(name) and name == normalize_label(name)
+        assert khmer_structure_valid(name) and " " in name
+
+
 def test_ctc_feasibility() -> None:
     assert ctc_feasible(40, "abcd")          # 10 steps >= 4
     assert not ctc_feasible(12, "aab")       # 3 steps < 3 + 1 repeat

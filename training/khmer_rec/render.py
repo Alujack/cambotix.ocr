@@ -23,6 +23,14 @@ from PIL import Image, ImageDraw, ImageFont
 INPUT_HEIGHT = 32
 MAX_WIDTH = 512
 FONT_SIZES = list(range(22, 66, 4))
+# Share of lines drawn with a thickened stroke. Weight axes only reach the
+# variable fonts; a stroke makes any font as heavy as card print.
+BOLD_RATE = 0.25
+# Muol-style fonts are already heavy; card names are often printed in a
+# lighter cut (Muol Light), so heading lines are thickened less often and
+# sometimes thinned instead.
+HEADING_BOLD_RATE = 0.1
+HEADING_THIN_RATE = 0.4
 
 
 @dataclass(frozen=True)
@@ -31,6 +39,7 @@ class FontSpec:
     script: str  # "khmer" | "latin"
     variable: bool
     holdout: bool
+    heading: bool  # Muol style, used for names on ID cards
     cmap: frozenset[int]
 
 
@@ -46,7 +55,8 @@ def load_fonts(training_dir: Path, *, holdout: bool) -> tuple[list[FontSpec], li
         if not path.is_file():
             raise FileNotFoundError(f"{path} missing; run training/fetch_fonts.py")
         cmap = frozenset(TTFont(str(path), lazy=True).getBestCmap() or {})
-        font = FontSpec(str(path), entry["script"], bool(entry.get("variable")), is_holdout, cmap)
+        font = FontSpec(str(path), entry["script"], bool(entry.get("variable")), is_holdout,
+                        bool(entry.get("heading")), cmap)
         # Holdout evaluation still needs Latin fonts for mixed lines; use any.
         if is_holdout == holdout or (holdout and entry["script"] == "latin"):
             (khmer if entry["script"] == "khmer" else latin).append(font)
@@ -101,16 +111,23 @@ class LineRenderer:
     def __init__(self, khmer_fonts: list[FontSpec], latin_fonts: list[FontSpec],
                  rng: random.Random) -> None:
         self.khmer_fonts = khmer_fonts
+        self.heading_fonts = [f for f in khmer_fonts if f.heading]
         # Latin text uses dedicated Latin fonts only: several Khmer display
         # fonts draw lowercase Latin as capitals, which would mislabel samples.
         self.latin_fonts = latin_fonts
         self.rng = rng
         self.np_rng = np.random.default_rng(rng.randrange(1 << 31))
 
-    def render(self, text: str) -> np.ndarray | None:
+    def render(self, text: str, *, heading: bool = False,
+               bold: bool | None = None) -> np.ndarray | None:
         """Return a float32 ``[32, W]`` line in [0, 1], or None if the text
-        cannot be rendered faithfully with the chosen fonts."""
-        khmer_font = self._pick(self.khmer_fonts, "".join(ch for ch in text if _is_khmer(ch)))
+        cannot be rendered faithfully with the chosen fonts.
+
+        ``heading`` draws Khmer in a Muol-style font when the font set has
+        one; ``bold`` forces (or rules out) a thickened stroke, which is
+        otherwise drawn at random."""
+        pool = self.heading_fonts if heading and self.heading_fonts else self.khmer_fonts
+        khmer_font = self._pick(pool, "".join(ch for ch in text if _is_khmer(ch)))
         if khmer_font is None:
             return None
         runs = _runs(text, khmer_font.cmap)
@@ -118,7 +135,7 @@ class LineRenderer:
         if latin_font is None:
             return None
         size = self.rng.choice(FONT_SIZES)
-        weight = self.rng.choice([300, 400, 400, 500, 700])
+        weight = self.rng.choice([300, 400, 400, 500, 700, 800, 900])
         latin_size = max(12, int(size * self.rng.uniform(0.65, 0.9)))
         fonts = [_pil_font(khmer_font.path, size, weight if khmer_font.variable else None)
                  if is_khmer else
@@ -128,7 +145,11 @@ class LineRenderer:
         ascent = max(f.getmetrics()[0] for f in fonts)
         descent = max(f.getmetrics()[1] for f in fonts)
         widths = [f.getlength(segment) for (segment, _), f in zip(runs, fonts, strict=True)]
-        pad_x, pad_y = self.rng.randint(4, 30), self.rng.randint(3, 16)
+        if bold is None:
+            bold = self.rng.random() < (HEADING_BOLD_RATE if heading else BOLD_RATE)
+        thin = heading and not bold and self.rng.random() < HEADING_THIN_RATE
+        stroke = max(1, round(size * self.rng.uniform(0.015, 0.045))) if bold else 0
+        pad_x, pad_y = self.rng.randint(4, 30) + stroke, self.rng.randint(3, 16) + stroke
         width = int(sum(widths)) + 2 * pad_x
         height = ascent + descent + 2 * pad_y
         if width > 6000:
@@ -140,9 +161,14 @@ class LineRenderer:
         x = float(pad_x)
         baseline = pad_y + ascent
         for (segment, _), font, advance in zip(runs, fonts, widths, strict=True):
-            draw.text((x, baseline), segment, font=font, fill=ink, anchor="ls")
+            draw.text((x, baseline), segment, font=font, fill=ink, anchor="ls",
+                      stroke_width=stroke, stroke_fill=ink)
             x += advance
-        image = self._degrade(np.asarray(canvas, dtype=np.uint8), text_height=size)
+        image = np.asarray(canvas, dtype=np.uint8)
+        if thin:  # a lighter-on-dark max filter erodes the dark strokes
+            k = max(2, round(size * self.rng.uniform(0.025, 0.04)))
+            image = cv2.dilate(image, np.ones((k, k), np.uint8))
+        image = self._degrade(image, text_height=size)
         gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
         trimmed = trim_to_ink(gray)
         if trimmed is None:
