@@ -1,7 +1,14 @@
 name: khmerocr
 description: Dart and Flutter client for the KhmerOCR REST API (Khmer/English OCR and Cambodian ID card extraction).
 version: 0.1.0
-publish_to: none
+homepage: https://github.com/Alujack/cambotix.ocr
+repository: https://github.com/Alujack/cambotix.ocr/tree/master/packages/sdk-flutter
+issue_tracker: https://github.com/Alujack/cambotix.ocr/issues
+topics:
+  - ocr
+  - khmer
+  - cambodia
+  - id-card
 
 environment:
   sdk: ^3.0.0
