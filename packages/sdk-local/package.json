@@ -1,6 +1,6 @@
 {
   "name": "@khmerocr/local",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Run KhmerOCR on the device: Cambodian ID card extraction in the browser or Node, with no OCR server.",
   "license": "Apache-2.0",
   "author": "Yoeurn Yan",

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.2
+
+- Khmer names that no correct read can contain (Khmer digits, punctuation or
+  symbols, two vowel signs in a row, a word starting with a vowel sign) are
+  now `valid: false`, so a misread name is no longer offered as a value.
+- Recognizer: a Khmer vowel sign after a digit or punctuation, or two vowel
+  signs in a row, now gives the read confidence 0.
+
 ## 0.1.1
 
 - National ID: field boxes measured on a real card (template 0.2.0). Before,
