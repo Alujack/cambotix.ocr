@@ -94,6 +94,33 @@ jobs:
           node -e "const m = require('./dist/cjs/index.js'); if (!m.KhmerOCRClient) process.exit(1)"
           node --input-type=module -e "const m = await import('./dist/esm/index.js'); if (!m.KhmerOCRClient) process.exit(1)"
 
+  sdk-local:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/sdk-local
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: packages/sdk-local/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run build
+      # Image code against recorded OpenCV output, templates against the Python
+      # engine's. The comparison with the real model needs the bundle and is skipped.
+      - run: npm test
+      - run: npm publish --dry-run
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Built package loads on Node 20 (CJS and ESM)
+        run: |
+          node -e "const m = require('./dist/cjs/node.js'); if (!m.loadKhmerOCR) process.exit(1)"
+          node --input-type=module -e "const m = await import('./dist/esm/browser.js'); if (!m.loadKhmerOCR) process.exit(1)"
+
   sdk-dart:
     runs-on: ubuntu-latest
     defaults:

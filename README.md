@@ -51,6 +51,10 @@ khmerocr extract-id national-id.jpg --model khmerocr-id-v1
   (Node.js and browsers) and [Dart/Flutter](packages/sdk-flutter) (Android,
   iOS, web, desktop), with a Flutter camera scanner example. Recognition runs
   on the server; the apps send the photo and get typed fields back.
+- **No server needed:** [`@khmerocr/local`](packages/sdk-local) is the engine
+  ported to TypeScript. It runs in the browser (the photo stays on the phone)
+  or in Node, loads the same model bundle, and returns the same results as
+  the REST API.
 
 ```python
 from khmerocr import KhmerOCR
@@ -97,6 +101,7 @@ packages/core-python/   khmerocr: engine (no FastAPI/DB/cloud dependencies)
     testing/            scripted recognizer + synthetic SPECIMEN cards
 packages/api/           cambotix-ocr-api: thin FastAPI layer (/v1)
 packages/sdk-typescript/  @khmerocr/client: TypeScript client for /v1 (on npm)
+packages/sdk-local/       @khmerocr/local: the engine in TypeScript, for browsers and Node (not published)
 packages/sdk-flutter/     khmerocr: Dart/Flutter client + camera scanner example (not published)
 schemas/                JSON Schemas for non-Python consumers
 models/                 release registry (manifest.json); weights are not stored here
