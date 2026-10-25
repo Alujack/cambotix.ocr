@@ -9,23 +9,30 @@ export function canny(gray: Raster, lowThreshold: number, highThreshold: number)
   const { width: w, height: h, data } = gray;
   const low = Math.floor(Math.min(lowThreshold, highThreshold));
   const high = Math.floor(Math.max(lowThreshold, highThreshold));
-  const at = (x: number, y: number) =>
-    data[(y < 0 ? 0 : y >= h ? h - 1 : y) * w + (x < 0 ? 0 : x >= w ? w - 1 : x)]!;
-
+  // The image with a one-pixel replicated border, for the Sobel filter.
+  const pw = w + 2;
+  const src = new Int32Array(pw * (h + 2));
+  for (let y = -1; y <= h; y++) {
+    const sy = y < 0 ? 0 : y >= h ? h - 1 : y;
+    for (let x = -1; x <= w; x++) {
+      src[(y + 1) * pw + x + 1] = data[sy * w + (x < 0 ? 0 : x >= w ? w - 1 : x)]!;
+    }
+  }
   const dx = new Int32Array(w * h);
   const dy = new Int32Array(w * h);
   // Magnitudes padded by one pixel of zeros on every side.
-  const pw = w + 2;
   const mag = new Int32Array(pw * (h + 2));
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
-      const gx = at(x + 1, y - 1) + 2 * at(x + 1, y) + at(x + 1, y + 1)
-        - at(x - 1, y - 1) - 2 * at(x - 1, y) - at(x - 1, y + 1);
-      const gy = at(x - 1, y + 1) + 2 * at(x, y + 1) + at(x + 1, y + 1)
-        - at(x - 1, y - 1) - 2 * at(x, y - 1) - at(x + 1, y - 1);
+      const c = (y + 1) * pw + x + 1;
+      const nw = src[c - pw - 1]!, n = src[c - pw]!, ne = src[c - pw + 1]!;
+      const west = src[c - 1]!, east = src[c + 1]!;
+      const sw = src[c + pw - 1]!, s = src[c + pw]!, se = src[c + pw + 1]!;
+      const gx = ne + 2 * east + se - nw - 2 * west - sw;
+      const gy = sw + 2 * s + se - nw - 2 * n - ne;
       dx[y * w + x] = gx;
       dy[y * w + x] = gy;
-      mag[(y + 1) * pw + x + 1] = Math.abs(gx) + Math.abs(gy);
+      mag[c] = Math.abs(gx) + Math.abs(gy);
     }
   }
 

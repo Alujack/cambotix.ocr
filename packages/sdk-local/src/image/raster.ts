@@ -22,11 +22,8 @@ export function createRaster(width: number, height: number, channels: 1 | 3): Ra
 
 /** Python's `round()` and OpenCV's `cvRound()`: halves go to the even neighbour. */
 export function roundHalfEven(x: number): number {
-  const floor = Math.floor(x);
-  const diff = x - floor;
-  if (diff < 0.5) return floor;
-  if (diff > 0.5) return floor + 1;
-  return floor % 2 === 0 ? floor : floor + 1;
+  const r = Math.round(x); // rounds halves up
+  return r - x === 0.5 && (r & 1) !== 0 ? r - 1 : r;
 }
 
 export function clampByte(x: number): number {

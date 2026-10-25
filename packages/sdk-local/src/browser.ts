@@ -16,14 +16,17 @@ export interface BrowserLoadOptions extends LoadOptions {
   model: string;
   onnx?: {
     /**
-     * Where ONNX Runtime's `.wasm` files are served (`ort.env.wasm.wasmPaths`).
-     * Copy them from `node_modules/onnxruntime-web/dist/` to your site to avoid a CDN.
+     * Where ONNX Runtime's `.wasm` files are served (`ort.env.wasm.wasmPaths`), e.g.
+     * `/khmerocr/ort/`. `npx khmerocr-local-assets public/khmerocr` copies them there.
      */
     wasmPaths?: string | Record<string, string>;
     /** WebAssembly threads; more than 1 needs a cross-origin isolated page. */
     numThreads?: number;
   };
-  /** tesseract.js `workerPath` and `corePath`. Their defaults load from the jsDelivr CDN. */
+  /**
+   * tesseract.js `workerPath` and `corePath`, e.g. `/khmerocr/tesseract/worker.min.js` and
+   * `/khmerocr/tesseract/`. Without them tesseract.js loads its code from the jsDelivr CDN.
+   */
   tesseractWorker?: { workerPath?: string; corePath?: string };
 }
 
@@ -47,18 +50,22 @@ function browserPlatform(options: BrowserLoadOptions): Platform {
       return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
     },
     async createOnnxSession(model) {
-      const module = await import("onnxruntime-web") as unknown as { default?: OrtModule } & OrtModule;
+      // The CPU (WebAssembly) build: half the download of the default WebGPU-capable build.
+      const module = await import("onnxruntime-web/wasm") as unknown as { default?: OrtModule } & OrtModule;
       const ort = module.default ?? module;
       const wasm = (ort.env as unknown as { wasm: Record<string, unknown> }).wasm;
       if (options.onnx?.wasmPaths !== undefined) wasm["wasmPaths"] = options.onnx.wasmPaths;
       if (options.onnx?.numThreads !== undefined) wasm["numThreads"] = options.onnx.numThreads;
       return createOrtSession(ort, model, { executionProviders: ["wasm"] });
     },
-    async createTesseractRunner(languages, tessdata) {
+    async createTesseractRunner(languages, tessdata, cacheKey) {
       const module = await import("tesseract.js") as unknown as { default?: TesseractModule } & TesseractModule;
       const tesseract = module.default ?? module;
+      // Each language set gets its own worker; caching the (checked) language files in
+      // IndexedDB under the bundle's digest downloads them once instead of per worker.
       return createTesseractJsRunner(tesseract, languages, tessdata,
-        (bytes) => new Blob([bytes as Uint8Array<ArrayBuffer>]), { ...options.tesseractWorker });
+        (bytes) => new Blob([bytes as Uint8Array<ArrayBuffer>]),
+        { ...options.tesseractWorker, cacheMethod: "write", cachePath: `khmerocr-${cacheKey}` });
     },
     resolve(root, path) {
       return new URL(path, baseUrl(root)).href.replace(/\/$/u, "");

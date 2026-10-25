@@ -16,25 +16,34 @@ export function reflect101(i: number, size: number): number {
  */
 export function gaussianBlur5(gray: Raster): Raster {
   const { width: w, height: h, data } = gray;
-  const kernel = [16, 64, 96, 64, 16]; // [1, 4, 6, 4, 1] / 16 with 8 fractional bits
+  // [1, 4, 6, 4, 1] / 16 with 8 fractional bits: 16, 64, 96, 64, 16.
+  const xs = reflectTable(w, 2);
   const rows = new Uint32Array(w * h);
   for (let y = 0; y < h; y++) {
     const base = y * w;
     for (let x = 0; x < w; x++) {
-      let acc = 0;
-      for (let k = 0; k < 5; k++) acc += kernel[k]! * data[base + reflect101(x + k - 2, w)]!;
-      rows[base + x] = acc;
+      rows[base + x] = 16 * (data[base + xs[x]!]! + data[base + xs[x + 4]!]!)
+        + 64 * (data[base + xs[x + 1]!]! + data[base + xs[x + 3]!]!) + 96 * data[base + xs[x + 2]!]!;
     }
   }
+  const ys = reflectTable(h, 2);
   const out = createRaster(w, h, 1);
   for (let y = 0; y < h; y++) {
+    const r0 = ys[y]! * w, r1 = ys[y + 1]! * w, r2 = ys[y + 2]! * w, r3 = ys[y + 3]! * w, r4 = ys[y + 4]! * w;
+    const base = y * w;
     for (let x = 0; x < w; x++) {
-      let acc = 0;
-      for (let k = 0; k < 5; k++) acc += kernel[k]! * rows[reflect101(y + k - 2, h) * w + x]!;
-      out.data[y * w + x] = Math.floor((acc + 32768) / 65536);
+      const acc = 16 * (rows[r0 + x]! + rows[r4 + x]!) + 64 * (rows[r1 + x]! + rows[r3 + x]!) + 96 * rows[r2 + x]!;
+      out.data[base + x] = (acc + 32768) >>> 16;
     }
   }
   return out;
+}
+
+/** `table[i + radius]` is the reflect-101 index of `i` for i in [-radius, size + radius). */
+function reflectTable(size: number, radius: number): Int32Array {
+  const table = new Int32Array(size + 2 * radius);
+  for (let i = -radius; i < size + radius; i++) table[i + radius] = reflect101(i, size);
+  return table;
 }
 
 /** Variance of OpenCV `Laplacian(gray, CV_64F)` (3x3 kernel, reflect-101 border). */
@@ -43,15 +52,14 @@ export function laplacianVariance(gray: Raster): number {
   const n = w * h;
   if (n === 0) return 0;
   const values = new Float64Array(n);
+  const xs = reflectTable(w, 1);
   let sum = 0;
   for (let y = 0; y < h; y++) {
     const up = reflect101(y - 1, h) * w;
     const down = reflect101(y + 1, h) * w;
     const row = y * w;
     for (let x = 0; x < w; x++) {
-      const left = reflect101(x - 1, w);
-      const right = reflect101(x + 1, w);
-      const v = data[up + x]! + data[down + x]! + data[row + left]! + data[row + right]!
+      const v = data[up + x]! + data[down + x]! + data[row + xs[x]!]! + data[row + xs[x + 2]!]!
         - 4 * data[row + x]!;
       values[row + x] = v;
       sum += v;
@@ -125,27 +133,35 @@ function rectFilter(gray: Raster, kw: number, kh: number, max: boolean): Raster 
   const { width: w, height: h, data } = gray;
   const ax = Math.floor(kw / 2);
   const ay = Math.floor(kh / 2);
-  const pick = max ? Math.max : Math.min;
+  // Comparing with XOR 255 turns the min filter into a max filter.
+  const flip = max ? 0 : 255;
   const tmp = new Uint8Array(w * h);
   for (let y = 0; y < h; y++) {
     const row = y * w;
     for (let x = 0; x < w; x++) {
-      let v = data[row + x]!;
-      const x0 = Math.max(0, x - ax);
+      let v = data[row + x]! ^ flip;
       const x1 = Math.min(w - 1, x - ax + kw - 1);
-      for (let xx = x0; xx <= x1; xx++) v = pick(v, data[row + xx]!);
+      for (let xx = Math.max(0, x - ax); xx <= x1; xx++) {
+        const u = data[row + xx]! ^ flip;
+        if (u > v) v = u;
+      }
       tmp[row + x] = v;
     }
   }
   const out = createRaster(w, h, 1);
+  const col = new Uint8Array(w);
   for (let y = 0; y < h; y++) {
-    const y0 = Math.max(0, y - ay);
     const y1 = Math.min(h - 1, y - ay + kh - 1);
-    for (let x = 0; x < w; x++) {
-      let v = tmp[y * w + x]!;
-      for (let yy = y0; yy <= y1; yy++) v = pick(v, tmp[yy * w + x]!);
-      out.data[y * w + x] = v;
+    col.set(tmp.subarray(y * w, y * w + w));
+    for (let yy = Math.max(0, y - ay); yy <= y1; yy++) {
+      const row = yy * w;
+      for (let x = 0; x < w; x++) {
+        const u = tmp[row + x]!;
+        if (u > col[x]!) col[x] = u;
+      }
     }
+    const base = y * w;
+    for (let x = 0; x < w; x++) out.data[base + x] = col[x]! ^ flip;
   }
   return out;
 }

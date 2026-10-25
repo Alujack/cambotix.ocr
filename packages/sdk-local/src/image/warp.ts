@@ -1,4 +1,3 @@
-import { cubicCoefficients } from "./resize.js";
 import { clampByte, createRaster, roundHalfEven, type Raster } from "./raster.js";
 import type { Point } from "./contours.js";
 
@@ -63,92 +62,81 @@ export function invert3(m: Matrix3): Matrix3 {
   ];
 }
 
-const TAB_BITS = 5;
-const TAB_SIZE = 1 << TAB_BITS;
-const REMAP_BITS = 15;
-const REMAP_SCALE = 1 << REMAP_BITS;
+const f32 = Math.fround;
+/** Fused multiply-add rounded to float32 (exact product, one rounding). */
+const fma32 = (a: number, b: number, c: number) => f32(a * b + c);
 
-let cubicTable: Int32Array | null = null;
-
-/**
- * OpenCV's 2D bicubic weight table: for each of 32 x 32 sub-pixel positions,
- * 16 fixed-point weights (scale 2^15) that sum to exactly 2^15.
- */
-function bicubicTable(): Int32Array {
-  if (cubicTable) return cubicTable;
-  const table = new Int32Array(TAB_SIZE * TAB_SIZE * 16);
-  const oneD = Array.from({ length: TAB_SIZE }, (_, k) => cubicCoefficients(k / TAB_SIZE));
-  for (let ay = 0; ay < TAB_SIZE; ay++) {
-    for (let ax = 0; ax < TAB_SIZE; ax++) {
-      const base = (ay * TAB_SIZE + ax) * 16;
-      let sum = 0;
-      for (let r = 0; r < 4; r++) {
-        for (let c = 0; c < 4; c++) {
-          const v = roundHalfEven(oneD[ay]![r]! * oneD[ax]![c]! * REMAP_SCALE);
-          table[base + r * 4 + c] = v;
-          sum += v;
-        }
-      }
-      if (sum !== REMAP_SCALE) {
-        const diff = sum - REMAP_SCALE;
-        let minR = 2, minC = 2, maxR = 2, maxC = 2;
-        for (let r = 2; r < 4; r++) {
-          for (let c = 2; c < 4; c++) {
-            const v = table[base + r * 4 + c]!;
-            if (v < table[base + minR * 4 + minC]!) {
-              minR = r;
-              minC = c;
-            } else if (v > table[base + maxR * 4 + maxC]!) {
-              maxR = r;
-              maxC = c;
-            }
-          }
-        }
-        if (diff < 0) table[base + maxR * 4 + maxC]! -= diff;
-        else table[base + minR * 4 + minC]! -= diff;
-      }
-    }
-  }
-  cubicTable = table;
-  return table;
+/** OpenCV 5 `bicubicWeights` (float32, A = -0.75), as its float32 SIMD kernel computes them. */
+function bicubicWeights(alpha: number, out: Float64Array): void {
+  const A = -0.75;
+  const a2 = f32(alpha * alpha);
+  const b = f32(1 - alpha);
+  const b2 = f32(b * b);
+  const w0 = f32(A * f32(alpha * b2));
+  const w3 = f32(A * f32(a2 * b));
+  const w1 = fma32(a2, fma32(A + 2, alpha, -(A + 3)), 1);
+  out[0] = w0;
+  out[1] = w1;
+  out[2] = f32(f32(f32(1 - w0) - w1) - w3);
+  out[3] = w3;
 }
 
 /**
  * OpenCV `warpPerspective(image, matrix, (width, height), flags=INTER_CUBIC,
  * borderMode=BORDER_REPLICATE)`. `matrix` maps source to destination points.
+ *
+ * Follows OpenCV 5's table-free bicubic warp in its float32 form (the one
+ * x86 builds run). ARM builds use float16 instead, so OpenCV itself differs
+ * by a grey level on some pixels between those machines.
  */
 export function warpPerspectiveCubic(image: Raster, matrix: Matrix3, width: number,
                                      height: number): Raster {
-  const m = invert3(matrix);
-  const table = bicubicTable();
+  const m = invert3(matrix).map(f32) as Matrix3;
   const cn = image.channels;
   const sw = image.width;
   const sh = image.height;
+  const minX = -Math.max(sw, 16);
+  const maxX = Math.max(sw, 16) * 2;
+  const minY = -Math.max(sh, 16);
+  const maxY = Math.max(sh, 16) * 2;
   const out = createRaster(width, height, cn);
+  const src = image.data;
+  const wx = new Float64Array(4);
+  const wy = new Float64Array(4);
+  const cols = new Int32Array(4);
+  const rowStride = sw * cn;
   for (let y = 0; y < height; y++) {
+    const mx = f32(f32(y * m[1]) + m[2]);
+    const my = f32(f32(y * m[4]) + m[5]);
+    const mz = f32(f32(y * m[7]) + m[8]);
     for (let x = 0; x < width; x++) {
-      let wgt = m[6] * x + m[7] * y + m[8];
-      wgt = wgt ? TAB_SIZE / wgt : 0;
-      const fx = Math.max(-2147483648, Math.min(2147483647, (m[0] * x + m[1] * y + m[2]) * wgt));
-      const fy = Math.max(-2147483648, Math.min(2147483647, (m[3] * x + m[4] * y + m[5]) * wgt));
-      const X = roundHalfEven(fx);
-      const Y = roundHalfEven(fy);
-      const sx = Math.floor(X / TAB_SIZE) - 1;
-      const sy = Math.floor(Y / TAB_SIZE) - 1;
-      const base = (((Y & (TAB_SIZE - 1)) * TAB_SIZE) + (X & (TAB_SIZE - 1))) * 16;
+      const invz = 1 / (mz + m[6] * x);
+      const xs = Math.min(Math.max(f32((mx + m[0] * x) * invz), minX), maxX);
+      const ys = Math.min(Math.max(f32((my + m[3] * x) * invz), minY), maxY);
+      const ix = Math.floor(xs);
+      const iy = Math.floor(ys);
+      bicubicWeights(f32(xs - ix), wx);
+      bicubicWeights(f32(ys - iy), wy);
+      for (let k = 0; k < 4; k++) {
+        const xx = ix - 1 + k;
+        cols[k] = (xx < 0 ? 0 : xx >= sw ? sw - 1 : xx) * cn;
+      }
       const dst = (y * width + x) * cn;
+      const c0 = cols[0]!, c1 = cols[1]!, c2 = cols[2]!, c3 = cols[3]!;
+      const w0 = wx[0]!, w1 = wx[1]!, w2 = wx[2]!, w3 = wx[3]!;
+      const inside = iy >= 1 && iy + 2 < sh;
       for (let c = 0; c < cn; c++) {
         let acc = 0;
         for (let r = 0; r < 4; r++) {
-          let yy = sy + r;
-          yy = yy < 0 ? 0 : yy >= sh ? sh - 1 : yy;
-          for (let k = 0; k < 4; k++) {
-            let xx = sx + k;
-            xx = xx < 0 ? 0 : xx >= sw ? sw - 1 : xx;
-            acc += image.data[(yy * sw + xx) * cn + c]! * table[base + r * 4 + k]!;
-          }
+          const yy = iy - 1 + r;
+          const row = (inside ? yy : yy < 0 ? 0 : yy >= sh ? sh - 1 : yy) * rowStride + c;
+          let sum = f32(src[row + c0]! * w0);
+          sum = f32(src[row + c1]! * w1 + sum);
+          sum = f32(src[row + c2]! * w2 + sum);
+          sum = f32(src[row + c3]! * w3 + sum);
+          acc = f32(sum * wy[r]! + acc);
         }
-        out.data[dst + c] = clampByte(Math.floor((acc + (1 << (REMAP_BITS - 1))) / REMAP_SCALE));
+        out.data[dst + c] = clampByte(roundHalfEven(acc));
       }
     }
   }

@@ -151,10 +151,11 @@ export class OnnxCtcRecognizer extends Recognizer {
 }
 
 function checkCalibration(points: ReadonlyArray<readonly number[]>): [number[], number[]] {
-  const raw = points.map((p) => Number(p[0]));
-  const calibrated = points.map((p) => Number(p[1]));
+  const isPairs = Array.isArray(points) && points.every((p) => Array.isArray(p));
+  const raw = isPairs ? points.map((p) => Number(p[0])) : [];
+  const calibrated = isPairs ? points.map((p) => Number(p[1])) : [];
   const inUnit = (v: number) => Number.isFinite(v) && v >= 0 && v <= 1;
-  const valid = points.length >= 2 && points.every((p) => p.length === 2)
+  const valid = isPairs && points.length >= 2 && points.every((p) => p.length === 2)
     && [...raw, ...calibrated].every(inUnit)
     && raw.every((v, i) => i === 0 || raw[i - 1]! < v)
     && calibrated.every((v, i) => i === 0 || calibrated[i - 1]! <= v);

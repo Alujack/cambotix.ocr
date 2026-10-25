@@ -11,7 +11,16 @@
     "directory": "packages/sdk-local"
   },
   "bugs": "https://github.com/Alujack/cambotix.ocr/issues",
-  "keywords": ["ocr", "khmer", "cambodia", "id-card", "kyc", "khmerocr", "onnx", "offline"],
+  "keywords": [
+    "ocr",
+    "khmer",
+    "cambodia",
+    "id-card",
+    "kyc",
+    "khmerocr",
+    "onnx",
+    "offline"
+  ],
   "publishConfig": {
     "access": "public"
   },
@@ -56,9 +65,13 @@
     },
     "./package.json": "./package.json"
   },
+  "bin": {
+    "khmerocr-local-assets": "bin/khmerocr-local-assets.mjs"
+  },
   "files": [
     "dist",
     "src",
+    "bin",
     "CHANGELOG.md"
   ],
   "scripts": {
@@ -86,6 +99,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.19.0",
+    "ajv": "^8.20.0",
     "onnxruntime-node": "1.27.0",
     "sharp": "0.34.5",
     "typescript": "5.9.3",

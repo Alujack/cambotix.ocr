@@ -77,12 +77,13 @@ export async function createTesseractJsRunner(
   toImage: (netpbm: Uint8Array) => unknown, workerOptions: Record<string, unknown>,
 ): Promise<TesseractRunner> {
   let failure: unknown = null;
-  // LSTM only (--oem 1). Language data comes from the bundle, uncompressed and uncached.
+  // LSTM only (--oem 1). Language data comes from the bundle, uncompressed; it is
+  // not cached unless the platform asks for it.
   const worker = await tesseract.createWorker(languages, 1, {
+    cacheMethod: "none",
     ...workerOptions,
     langPath,
     gzip: false,
-    cacheMethod: "none",
     errorHandler: (error: unknown) => {
       failure = error;
     },

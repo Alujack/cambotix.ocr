@@ -15,8 +15,11 @@ export interface Platform {
   readFile(root: string, path: string): Promise<Uint8Array>;
   sha256Hex(data: Uint8Array): Promise<string>;
   createOnnxSession(model: Uint8Array): Promise<OnnxSession>;
-  /** `tessdata` is the location of the bundle's tessdata folder, from `resolve`. */
-  createTesseractRunner(languages: string, tessdata: string): Promise<TesseractRunner>;
+  /**
+   * `tessdata` is the bundle's tessdata folder (from `resolve`); `cacheKey`
+   * identifies its content, for platforms that cache language files.
+   */
+  createTesseractRunner(languages: string, tessdata: string, cacheKey: string): Promise<TesseractRunner>;
   /** Location of `path` inside the bundle at `root`. */
   resolve(root: string, path: string): string;
   /** Decode encoded image bytes into upright RGB pixels (EXIF orientation applied). */

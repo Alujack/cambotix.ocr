@@ -9,14 +9,12 @@ const DIRS: ReadonlyArray<Point> = [
 ];
 
 /**
- * OpenCV `findContours(mask, RETR_EXTERNAL, CHAIN_APPROX_NONE)`: the outer
+ * OpenCV `findContours(mask, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE)`: the outer
  * border of every connected component (8-connectivity) that is not inside a
  * hole of another component. Uses Suzuki and Abe's border following, the
- * algorithm OpenCV implements. Points are pixel coordinates in tracing order.
- *
- * The Python engine asks for CHAIN_APPROX_SIMPLE; that only drops points in
- * the middle of straight runs, which changes neither the area nor the convex
- * hull, the only things the engine uses.
+ * algorithm OpenCV implements: each border starts at its first pixel in
+ * raster order and runs counter-clockwise on screen. Points in the middle of
+ * straight runs are dropped, as CHAIN_APPROX_SIMPLE does.
  */
 export function findExternalContours(mask: Raster): Point[][] {
   const w = mask.width + 2;
@@ -55,7 +53,7 @@ export function findExternalContours(mask: Raster): Point[][] {
         borders[nbd] = { hole, parent };
         const points = traceBorder(f, w, j, i, start, nbd);
         if (!hole && parent === 1) {
-          contours.push(points.map(([x, y]) => [x - 1, y - 1] as Point));
+          contours.push(compressRuns(points).map(([x, y]) => [x - 1, y - 1] as Point));
         }
       }
       const value = f[p]!;
@@ -63,6 +61,19 @@ export function findExternalContours(mask: Raster): Point[][] {
     }
   }
   return contours;
+}
+
+/** Keep the first point and every point where the chain changes direction. */
+function compressRuns(points: Point[]): Point[] {
+  if (points.length < 3) return points;
+  const kept: Point[] = [points[0]!];
+  for (let k = 1; k < points.length; k++) {
+    const [px, py] = points[k - 1]!;
+    const [x, y] = points[k]!;
+    const [nx, ny] = points[(k + 1) % points.length]!;
+    if (x - px !== nx - x || y - py !== ny - y) kept.push(points[k]!);
+  }
+  return kept;
 }
 
 function dirIndex(fromX: number, fromY: number, toX: number, toY: number): number {
@@ -154,33 +165,143 @@ export function arcLength(points: ReadonlyArray<Point>): number {
   return length;
 }
 
-/** Convex hull (Andrew's monotone chain), without collinear points. */
+/** OpenCV's `Sklansky_` scan over sorted points from `start` to `end`. */
+function sklansky(pts: ReadonlyArray<Point>, start: number, end: number, stack: number[],
+                  nsign: number, sign2: number): number {
+  const incr = end > start ? 1 : -1;
+  let pprev = start;
+  let pcur = pprev + incr;
+  let pnext = pcur + incr;
+  let size = 3;
+  if (start === end || (pts[start]![0] === pts[end]![0] && pts[start]![1] === pts[end]![1])) {
+    stack[0] = start;
+    return 1;
+  }
+  stack[0] = pprev;
+  stack[1] = pcur;
+  stack[2] = pnext;
+  const afterEnd = end + incr;
+  while (pnext !== afterEnd) {
+    const cury = pts[pcur]![1];
+    const by = pts[pnext]![1] - cury;
+    if (Math.sign(by) !== nsign) {
+      const ax = pts[pcur]![0] - pts[pprev]![0];
+      const ay = cury - pts[pprev]![1];
+      const bx = pts[pnext]![0] - pts[pcur]![0];
+      const convexity = ay * bx - ax * by;
+      if (Math.sign(convexity) === sign2 && (ax !== 0 || ay !== 0)) {
+        pprev = pcur;
+        pcur = pnext;
+        pnext += incr;
+        stack[size++] = pnext;
+      } else if (pprev === start) {
+        pcur = pnext;
+        stack[1] = pcur;
+        pnext += incr;
+        stack[2] = pnext;
+      } else {
+        stack[size - 2] = pnext;
+        pcur = pprev;
+        pprev = stack[size - 4]!;
+        size--;
+      }
+    } else {
+      pnext += incr;
+      stack[size - 1] = pnext;
+    }
+  }
+  return size - 1;
+}
+
+/**
+ * OpenCV `convexHull(points)` (clockwise=False, returnPoints=True), including
+ * its vertex order: OpenCV starts the hull where the vertices' positions in
+ * the input form a monotonic sequence, and that order decides which corner
+ * `approxPolyDP` starts from.
+ */
 export function convexHull(points: ReadonlyArray<Point>): Point[] {
-  const sorted = [...points].sort((a, b) => a[0] - b[0] || a[1] - b[1]);
-  const unique = sorted.filter((p, k) => k === 0 || p[0] !== sorted[k - 1]![0] || p[1] !== sorted[k - 1]![1]);
-  if (unique.length < 3) return unique;
-  const cross = (o: Point, a: Point, b: Point) =>
-    (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
-  const lower: Point[] = [];
-  for (const p of unique) {
-    while (lower.length >= 2 && cross(lower[lower.length - 2]!, lower[lower.length - 1]!, p) <= 0) lower.pop();
-    lower.push(p);
+  const total = points.length;
+  if (total === 0) return [];
+  const order = points.map((_, k) => k).sort((a, b) =>
+    points[a]![0] - points[b]![0] || points[a]![1] - points[b]![1] || a - b);
+  const pts = order.map((k) => points[k]!);
+  let minY = 0;
+  let maxY = 0;
+  for (let k = 1; k < total; k++) {
+    if (pts[minY]![1] > pts[k]![1]) minY = k;
+    if (pts[maxY]![1] < pts[k]![1]) maxY = k;
   }
-  const upper: Point[] = [];
-  for (let k = unique.length - 1; k >= 0; k--) {
-    const p = unique[k]!;
-    while (upper.length >= 2 && cross(upper[upper.length - 2]!, upper[upper.length - 1]!, p) <= 0) upper.pop();
-    upper.push(p);
+  const hull: number[] = [];
+  if (pts[0]![0] === pts[total - 1]![0] && pts[0]![1] === pts[total - 1]![1]) {
+    hull.push(0);
+  } else {
+    // Upper half; with clockwise=False OpenCV swaps the two chains.
+    const tl: number[] = [];
+    const tlCount = sklansky(pts, 0, maxY, tl, -1, 1);
+    const tr: number[] = [];
+    const trCount = sklansky(pts, total - 1, maxY, tr, -1, -1);
+    const [upA, upACount, upB, upBCount] = [tr, trCount, tl, tlCount];
+    for (let k = 0; k < upACount - 1; k++) hull.push(upA[k]!);
+    for (let k = upBCount - 1; k > 0; k--) hull.push(upB[k]!);
+    const stopIdx = upBCount > 2 ? upB[1]! : upACount > 2 ? upA[upACount - 2]! : -1;
+
+    const bl: number[] = [];
+    let blCount = sklansky(pts, 0, minY, bl, 1, -1);
+    const br: number[] = [];
+    let brCount = sklansky(pts, total - 1, minY, br, 1, 1);
+    if (stopIdx >= 0) {
+      const checkIdx = blCount > 2 ? bl[1]! : blCount + brCount > 2 ? br[2 - blCount]! : -1;
+      if (checkIdx === stopIdx || (checkIdx >= 0 && pts[checkIdx]![0] === pts[stopIdx]![0]
+          && pts[checkIdx]![1] === pts[stopIdx]![1])) {
+        // All points on one line: the lower half mirrors the upper half.
+        blCount = Math.min(blCount, 2);
+        brCount = Math.min(brCount, 2);
+      }
+    }
+    for (let k = 0; k < blCount - 1; k++) hull.push(bl[k]!);
+    for (let k = brCount - 1; k > 0; k--) hull.push(br[k]!);
   }
-  lower.pop();
-  upper.pop();
-  return lower.concat(upper);
+  let indices = hull.map((k) => order[k]!);
+
+  // Cyclic shift so the input positions ascend or descend, when they can.
+  const n = indices.length;
+  if (n >= 3) {
+    let minIdx = 0;
+    let maxIdx = 0;
+    let lt = 0;
+    for (let k = 1; k < n; k++) {
+      const idx = indices[k]!;
+      lt += indices[k - 1]! < idx ? 1 : 0;
+      if (lt > 1 && lt <= k - 2) break;
+      if (idx < indices[minIdx]!) minIdx = k;
+      if (idx > indices[maxIdx]!) maxIdx = k;
+    }
+    const mmdist = Math.abs(maxIdx - minIdx);
+    if ((mmdist === 1 || mmdist === n - 1) && (lt <= 1 || lt >= n - 2)) {
+      const ascending = (maxIdx + 1) % n === minIdx;
+      const i0 = ascending ? minIdx : maxIdx;
+      if (i0 > 0) {
+        const shifted: number[] = [];
+        let j = i0;
+        let k = 0;
+        for (; k < n; k++) {
+          const curr = indices[j]!;
+          shifted.push(curr);
+          const nextJ = j + 1 < n ? j + 1 : 0;
+          if (k < n - 1 && ascending !== (curr < indices[nextJ]!)) break;
+          j = nextJ;
+        }
+        if (k === n) indices = shifted;
+      }
+    }
+  }
+  return indices.map((k) => points[k]!);
 }
 
 /**
  * OpenCV `approxPolyDP(curve, epsilon, closed=True)`: Douglas-Peucker with
- * OpenCV's choice of starting points and its final pass that drops nearly
- * collinear vertices.
+ * OpenCV 5's point-to-segment distance, its choice of starting points, and
+ * its final pass that drops nearly collinear vertices.
  */
 export function approxPolyDPClosed(curve: ReadonlyArray<Point>, epsilon: number): Point[] {
   const count = curve.length;
@@ -229,17 +350,28 @@ export function approxPolyDPClosed(curve: ReadonlyArray<Point>, epsilon: number)
       const e = curve[end]!;
       const dx = e[0] - s[0];
       const dy = e[1] - s[1];
-      let maxDist = 0;
+      const segment2 = dx * dx + dy * dy;
+      let maxDist2 = 0;
       while (next !== end) {
         const pt = curve[next]!;
-        const dist = Math.abs((pt[1] - s[1]) * dx - (pt[0] - s[0]) * dy);
-        if (dist > maxDist) {
-          maxDist = dist;
+        // Squared distance to the segment, times its squared length.
+        const projection = (pt[0] - s[0]) * dx + (pt[1] - s[1]) * dy;
+        let dist2: number;
+        if (projection < 0) {
+          dist2 = ((pt[0] - s[0]) ** 2 + (pt[1] - s[1]) ** 2) * segment2;
+        } else if (projection > segment2) {
+          dist2 = ((pt[0] - e[0]) ** 2 + (pt[1] - e[1]) ** 2) * segment2;
+        } else {
+          const cross = (pt[1] - s[1]) * dx - (pt[0] - s[0]) * dy;
+          dist2 = cross * cross;
+        }
+        if (dist2 > maxDist2) {
+          maxDist2 = dist2;
           split = next;
         }
         next = (next + 1) % count;
       }
-      within = maxDist * maxDist <= eps * (dx * dx + dy * dy);
+      within = maxDist2 <= eps * segment2;
     } else {
       within = true;
     }

@@ -14,20 +14,28 @@ export function resize(image: Raster, width: number, height: number,
   const scaleX = 1 / (width / image.width);
   const scaleY = 1 / (height / image.height);
   if (interpolation === "area" && scaleX >= 1 && scaleY >= 1) {
+    if (Number.isInteger(scaleX) && Number.isInteger(scaleY)) return resizeAreaFast(image, width, height, scaleX, scaleY);
     return resizeArea(image, width, height, scaleX, scaleY);
   }
   return resizeSeparable(image, width, height, interpolation);
 }
 
-interface AreaTap {
-  dst: number;
-  src: number;
-  weight: number;
+/** OpenCV `computeResizeAreaTab`: source pixels covered by each destination pixel. */
+interface AreaTabs {
+  dst: Int32Array;
+  src: Int32Array;
+  weight: Float64Array;
 }
 
-/** OpenCV `computeResizeAreaTab`: source pixels covered by each destination pixel. */
-function areaTabs(srcSize: number, dstSize: number, scale: number): AreaTap[] {
-  const taps: AreaTap[] = [];
+function areaTabs(srcSize: number, dstSize: number, scale: number): AreaTabs {
+  const dst: number[] = [];
+  const src: number[] = [];
+  const weight: number[] = [];
+  const push = (d: number, s: number, w: number) => {
+    dst.push(d);
+    src.push(s);
+    weight.push(w);
+  };
   for (let dx = 0; dx < dstSize; dx++) {
     const fsx1 = dx * scale;
     const fsx2 = fsx1 + scale;
@@ -36,44 +44,69 @@ function areaTabs(srcSize: number, dstSize: number, scale: number): AreaTap[] {
     let sx2 = Math.floor(fsx2);
     sx2 = Math.min(sx2, srcSize - 1);
     sx1 = Math.min(sx1, sx2);
-    if (sx1 - fsx1 > 1e-3) {
-      taps.push({ dst: dx, src: sx1 - 1, weight: (sx1 - fsx1) / cellWidth });
-    }
-    for (let sx = sx1; sx < sx2; sx++) {
-      taps.push({ dst: dx, src: sx, weight: 1 / cellWidth });
-    }
-    if (fsx2 - sx2 > 1e-3) {
-      taps.push({ dst: dx, src: sx2, weight: Math.min(Math.min(fsx2 - sx2, 1), cellWidth) / cellWidth });
-    }
+    if (sx1 - fsx1 > 1e-3) push(dx, sx1 - 1, (sx1 - fsx1) / cellWidth);
+    for (let sx = sx1; sx < sx2; sx++) push(dx, sx, 1 / cellWidth);
+    if (fsx2 - sx2 > 1e-3) push(dx, sx2, Math.min(Math.min(fsx2 - sx2, 1), cellWidth) / cellWidth);
   }
-  return taps;
+  return { dst: Int32Array.from(dst), src: Int32Array.from(src), weight: Float64Array.from(weight) };
 }
 
 function resizeArea(image: Raster, width: number, height: number,
                     scaleX: number, scaleY: number): Raster {
   const cn = image.channels;
-  const xTabs = areaTabs(image.width, width, scaleX);
-  const yTabs = areaTabs(image.height, height, scaleY);
+  const x = areaTabs(image.width, width, scaleX);
+  const y = areaTabs(image.height, height, scaleY);
   const out = createRaster(width, height, cn);
   const rowSize = width * cn;
   const sum = new Float64Array(rowSize);
   const row = new Float64Array(rowSize);
+  const src = image.data;
+  const xTaps = x.dst.length;
   let tap = 0;
   for (let dy = 0; dy < height; dy++) {
     sum.fill(0);
-    for (; tap < yTabs.length && yTabs[tap]!.dst === dy; tap++) {
-      const { src: sy, weight: beta } = yTabs[tap]!;
+    for (; tap < y.dst.length && y.dst[tap] === dy; tap++) {
+      const beta = y.weight[tap]!;
       row.fill(0);
-      const base = sy * image.width * cn;
-      for (const { dst, src, weight } of xTabs) {
-        for (let c = 0; c < cn; c++) {
-          row[dst * cn + c]! += image.data[base + src * cn + c]! * weight;
+      const base = y.src[tap]! * image.width * cn;
+      if (cn === 1) {
+        for (let k = 0; k < xTaps; k++) row[x.dst[k]!]! += src[base + x.src[k]!]! * x.weight[k]!;
+      } else {
+        for (let k = 0; k < xTaps; k++) {
+          const d = x.dst[k]! * 3;
+          const s = base + x.src[k]! * 3;
+          const w = x.weight[k]!;
+          row[d]! += src[s]! * w;
+          row[d + 1]! += src[s + 1]! * w;
+          row[d + 2]! += src[s + 2]! * w;
         }
       }
       for (let i = 0; i < rowSize; i++) sum[i]! += row[i]! * beta;
     }
     const outBase = dy * rowSize;
     for (let i = 0; i < rowSize; i++) out.data[outBase + i] = saturateByte(sum[i]!);
+  }
+  return out;
+}
+
+/** OpenCV `resizeAreaFast`: integer ratios average whole blocks. */
+function resizeAreaFast(image: Raster, width: number, height: number, sx: number, sy: number): Raster {
+  const cn = image.channels;
+  const out = createRaster(width, height, cn);
+  const scale = 1 / (sx * sy);
+  const src = image.data;
+  const stride = image.width * cn;
+  for (let dy = 0; dy < height; dy++) {
+    for (let dx = 0; dx < width; dx++) {
+      for (let c = 0; c < cn; c++) {
+        let sum = 0;
+        for (let y = dy * sy; y < (dy + 1) * sy; y++) {
+          const base = y * stride + c;
+          for (let x = dx * sx; x < (dx + 1) * sx; x++) sum += src[base + x * cn]!;
+        }
+        out.data[(dy * width + dx) * cn + c] = saturateByte(sum * scale);
+      }
+    }
   }
   return out;
 }
@@ -146,38 +179,48 @@ function resizeSeparable(image: Raster, width: number, height: number,
   const srcW = image.width;
   const srcH = image.height;
 
+  const ks = xt.ksize;
+  // Clamped (replicated-border) source offsets for every tap.
+  const xOffsets = new Int32Array(width * ks);
+  for (let dx = 0; dx < width; dx++) {
+    for (let k = 0; k < ks; k++) {
+      const sx = xt.start[dx]! + k;
+      xOffsets[dx * ks + k] = (sx < 0 ? 0 : sx >= srcW ? srcW - 1 : sx) * cn;
+    }
+  }
+
   // Horizontal pass over every source row (fixed point, scale 2^11).
-  const rows = new Int32Array(srcH * width * cn);
+  const rowSize = width * cn;
+  const rows = new Int32Array(srcH * rowSize);
+  const src = image.data;
   for (let y = 0; y < srcH; y++) {
     const base = y * srcW * cn;
+    const outBase = y * rowSize;
     for (let dx = 0; dx < width; dx++) {
       for (let c = 0; c < cn; c++) {
         let acc = 0;
-        for (let k = 0; k < xt.ksize; k++) {
-          let sx = xt.start[dx]! + k;
-          sx = sx < 0 ? 0 : sx >= srcW ? srcW - 1 : sx;
-          acc += image.data[base + sx * cn + c]! * xt.coef[dx * xt.ksize + k]!;
-        }
-        rows[(y * width + dx) * cn + c] = acc;
+        for (let k = 0; k < ks; k++) acc += src[base + xOffsets[dx * ks + k]! + c]! * xt.coef[dx * ks + k]!;
+        rows[outBase + dx * cn + c] = acc;
       }
     }
   }
 
   // Vertical pass, then round away the 22 fractional bits.
   const out = createRaster(width, height, cn);
-  const rowSize = width * cn;
-  const shift = 2 * COEF_BITS;
-  const delta = 1 << (shift - 1);
+  const scale = 2 ** (2 * COEF_BITS);
+  const delta = scale / 2;
+  const sum = new Float64Array(rowSize);
   for (let dy = 0; dy < height; dy++) {
-    for (let i = 0; i < rowSize; i++) {
-      let acc = 0;
-      for (let k = 0; k < yt.ksize; k++) {
-        let sy = yt.start[dy]! + k;
-        sy = sy < 0 ? 0 : sy >= srcH ? srcH - 1 : sy;
-        acc += rows[sy * rowSize + i]! * yt.coef[dy * yt.ksize + k]!;
-      }
-      out.data[dy * rowSize + i] = clampByte(Math.floor((acc + delta) / 2 ** shift));
+    sum.fill(0);
+    for (let k = 0; k < yt.ksize; k++) {
+      let sy = yt.start[dy]! + k;
+      sy = sy < 0 ? 0 : sy >= srcH ? srcH - 1 : sy;
+      const coef = yt.coef[dy * yt.ksize + k]!;
+      const base = sy * rowSize;
+      for (let i = 0; i < rowSize; i++) sum[i]! += rows[base + i]! * coef;
     }
+    const outBase = dy * rowSize;
+    for (let i = 0; i < rowSize; i++) out.data[outBase + i] = clampByte(Math.floor((sum[i]! + delta) / scale));
   }
   return out;
 }

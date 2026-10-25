@@ -217,7 +217,7 @@ function createTesseract(bundle: Bundle, options: Record<string, unknown>): Reco
       }
       return check;
     }));
-    return bundle.platform.createTesseractRunner(langs, location);
+    return bundle.platform.createTesseractRunner(langs, location, bundle.manifest.weightsSha256.slice(0, 16));
   }, languages);
 }
 
