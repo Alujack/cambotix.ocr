@@ -5,51 +5,48 @@ import type { TemplateData } from "./layout.js";
 export const BUILTIN_TEMPLATES: Readonly<Record<string, TemplateData>> = {
   "khmer_national_id_front_v1": {
     "template_id": "khmer_national_id_front_v1",
-    "template_version": "0.1.0",
+    "template_version": "0.2.0",
     "document_type": "khmer_national_id",
     "side": "front",
     "verified": false,
-    "notes": "PROVISIONAL layout used for development with synthetic fixtures. Region positions, labels, the ID number pattern, and the date convention have NOT been confirmed against authorized reference cards. While 'verified' is false, every result is marked review_required.",
+    "notes": "Layout measured from one real Cambodian National ID card (front with a three-line machine-readable zone at the bottom; ID number top right; Khmer name, Latin name, then date of birth, sex and height on one line), photographed with the card holder's consent. Unverified until confirmed on more cards; the older design without a machine-readable zone may differ. While 'verified' is false every result is marked review_required.",
     "canonical_size": [
       1012,
       638
     ],
+    "padding": 0.005,
     "fields": [
       {
         "name": "id_number",
         "type": "id_number",
         "box": [
-          0.55,
-          0.19,
-          0.42,
-          0.11
+          0.62,
+          0.02,
+          0.36,
+          0.08
         ],
         "script": "digits",
         "languages": "eng",
         "char_whitelist": "0123456789",
         "critical": true,
         "pattern": "^[0-9]{9}$",
-        "labels": [
-          "ID",
-          "No."
-        ],
+        "labels": [],
         "source": "front_region"
       },
       {
         "name": "full_name_km",
         "type": "khmer_name",
         "box": [
-          0.33,
-          0.31,
-          0.64,
-          0.12
+          0.416,
+          0.08,
+          0.564,
+          0.076
         ],
         "script": "khmer",
         "languages": "khm",
         "critical": true,
         "labels": [
-          "គោត្តនាមនិងនាម",
-          "ឈ្មោះ"
+          "គោត្តនាមនិងនាម"
         ],
         "source": "front_region"
       },
@@ -57,27 +54,25 @@ export const BUILTIN_TEMPLATES: Readonly<Record<string, TemplateData>> = {
         "name": "full_name_latin",
         "type": "latin_name",
         "box": [
-          0.33,
-          0.43,
-          0.64,
-          0.1
+          0.39,
+          0.16,
+          0.46,
+          0.039
         ],
         "script": "latin",
         "languages": "eng",
         "critical": true,
-        "labels": [
-          "NAME"
-        ],
+        "labels": [],
         "source": "front_region"
       },
       {
         "name": "date_of_birth",
         "type": "birth_date",
         "box": [
-          0.33,
-          0.54,
-          0.44,
-          0.1
+          0.385,
+          0.203,
+          0.21,
+          0.049
         ],
         "script": "mixed",
         "languages": "khm+eng",
@@ -91,13 +86,13 @@ export const BUILTIN_TEMPLATES: Readonly<Record<string, TemplateData>> = {
         "name": "gender",
         "type": "gender",
         "box": [
-          0.78,
-          0.54,
-          0.19,
-          0.1
+          0.59,
+          0.203,
+          0.13,
+          0.049
         ],
-        "script": "mixed",
-        "languages": "khm+eng",
+        "script": "khmer",
+        "languages": "khm",
         "critical": false,
         "labels": [
           "ភេទ"

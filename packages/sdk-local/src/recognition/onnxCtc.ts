@@ -28,6 +28,8 @@ export interface OnnxSession {
 const SPACE_GAP_RATIO = 0.22;
 const CROP_MARGIN_Y = 4;
 const CROP_MARGIN_X = 6;
+// Edge specks with less than this share of a crop's ink can be trimmed off.
+const SPECK_INK_RATIO = 0.05;
 
 const COENG = "្";
 const isKhmerConsonant = (cp: number) => cp >= 0x1780 && cp < 0x17a3;
@@ -238,42 +240,72 @@ export function khmerStructureValid(text: string): boolean {
 
 /**
  * Crop a field region to its text, assuming dark text on a light background.
+ *
+ * Specks at the left or right edge, such as a vowel mark from a neighbouring
+ * line, are left out when a blank gap of at least one line height separates
+ * them from the text: the recognizer would otherwise read the gap as letters.
+ *
  * Returns null when the region contains no ink at all.
  */
 export function trimToInk(gray: Raster): Raster | null {
   if (gray.data.length === 0 || meanStd(gray.data).std < 8) return null;
   const ink = otsuBinarize(gray, 1, true);
   const { width: w, height: h } = gray;
-  const minRow = Math.max(1, Math.floor(w / 200));
-  let top = -1;
-  let bottom = -1;
-  let left = -1;
-  let right = -1;
-  const colSums = new Int32Array(w);
+  const minRowInk = Math.max(1, Math.floor(w / 200));
+  const rowInk = new Int32Array(h);
+  const columnInk = new Int32Array(w);
   for (let y = 0; y < h; y++) {
-    let rowSum = 0;
     for (let x = 0; x < w; x++) {
       const v = ink.data[y * w + x]!;
-      rowSum += v;
-      colSums[x]! += v;
-    }
-    if (rowSum >= minRow) {
-      if (top < 0) top = y;
-      bottom = y;
+      rowInk[y]! += v;
+      columnInk[x]! += v;
     }
   }
-  for (let x = 0; x < w; x++) {
-    if (colSums[x]! >= 1) {
-      if (left < 0) left = x;
-      right = x;
-    }
+  const rows = indicesWhere(rowInk, (v) => v >= minRowInk);
+  let cols = indicesWhere(columnInk, (v) => v >= 1);
+  if (rows.length === 0 || cols.length === 0) return null;
+  cols = dropEdgeSpecks(cols, columnInk, rows[rows.length - 1]! - rows[0]! + 1);
+  const left = cols[0]!;
+  const right = cols[cols.length - 1]!;
+  const keptRows: number[] = [];
+  for (let y = 0; y < h; y++) {
+    let sum = 0;
+    for (let x = left; x <= right; x++) sum += ink.data[y * w + x]!;
+    if (sum >= minRowInk) keptRows.push(y);
   }
-  if (top < 0 || left < 0) return null;
-  const y0 = Math.max(0, top - CROP_MARGIN_Y);
-  const y1 = Math.min(h, bottom + CROP_MARGIN_Y + 1);
+  if (keptRows.length === 0) return null;
+  const y0 = Math.max(0, keptRows[0]! - CROP_MARGIN_Y);
+  const y1 = Math.min(h, keptRows[keptRows.length - 1]! + CROP_MARGIN_Y + 1);
   const x0 = Math.max(0, left - CROP_MARGIN_X);
   const x1 = Math.min(w, right + CROP_MARGIN_X + 1);
   return crop(gray, x0, y0, x1 - x0, y1 - y0);
+}
+
+function indicesWhere(values: Int32Array, test: (v: number) => boolean): number[] {
+  const out: number[] = [];
+  values.forEach((v, i) => { if (test(v)) out.push(i); });
+  return out;
+}
+
+/**
+ * Drop edge clusters of ink columns that hold under 5% of the ink and are
+ * separated from the rest by a blank gap of at least `lineHeight`.
+ */
+function dropEdgeSpecks(cols: number[], columnInk: Int32Array, lineHeight: number): number[] {
+  const minGap = Math.max(2, lineHeight);
+  const clusters: number[][] = [[cols[0]!]];
+  for (let i = 1; i < cols.length; i++) {
+    if (cols[i]! - cols[i - 1]! - 1 >= minGap) clusters.push([]);
+    clusters[clusters.length - 1]!.push(cols[i]!);
+  }
+  const mass = (cluster: number[]) => cluster.reduce((sum, c) => sum + columnInk[c]!, 0);
+  const total = clusters.reduce((sum, c) => sum + mass(c), 0);
+  while (clusters.length > 1) {
+    if (mass(clusters[clusters.length - 1]!) < SPECK_INK_RATIO * total) clusters.pop();
+    else if (mass(clusters[0]!) < SPECK_INK_RATIO * total) clusters.shift();
+    else break;
+  }
+  return clusters.flat();
 }
 
 /**

@@ -77,6 +77,10 @@ def find_font(candidates: tuple[str, ...], env_var: str | None = None) -> str | 
 
 def render_card(identity: SyntheticIdentity | None = None,
                 template: DocumentTemplate | None = None) -> ImageArray:
+    """A SPECIMEN card in the National ID layout: ID number top right, the
+    Khmer name after its printed label, the Latin name below it, and date of
+    birth, sex and height on one line. Values are drawn inside the template's
+    boxes and labels to their left, as on the real card."""
     identity = identity or SyntheticIdentity()
     template = template or load_builtin_template(DEFAULT_TEMPLATE_ID)
     width, height = template.canonical_size
@@ -86,31 +90,43 @@ def render_card(identity: SyntheticIdentity | None = None,
     # Light guilloche-like background lines so the card is not flat white.
     for line_y in range(0, height, 14):
         draw.line([(0, line_y), (width, line_y + 40)], fill=(214, 224, 234), width=1)
-    draw.rectangle([0, 0, width - 1, int(height * 0.16)], fill=(186, 205, 226))
-    draw.rectangle([int(width * 0.03), int(height * 0.22), int(width * 0.29),
-                    int(height * 0.86)], fill=(160, 168, 178))
+    # Portrait placeholder, left of the text block.
+    draw.rectangle([int(width * 0.04), int(height * 0.13), int(width * 0.21),
+                    int(height * 0.52)], fill=(160, 168, 178))
 
-    khmer_font = _font(find_font(_KHMER_FONT_CANDIDATES, "KHMEROCR_FONT"), int(height * 0.052))
-    latin_font = _font(find_font(_LATIN_FONT_CANDIDATES), int(height * 0.055))
-    title_font = _font(find_font(_LATIN_FONT_CANDIDATES), int(height * 0.06))
-    draw.text((int(width * 0.32), int(height * 0.04)), "SPECIMEN - SYNTHETIC TEST CARD",
-              fill=(40, 40, 60), font=title_font)
+    khmer_path = find_font(_KHMER_FONT_CANDIDATES, "KHMEROCR_FONT")
+    latin_path = find_font(_LATIN_FONT_CANDIDATES)
+    title_font = _font(latin_path, int(height * 0.05))
+    draw.text((int(width * 0.05), int(height * 0.88)), "SPECIMEN - SYNTHETIC TEST CARD",
+              fill=(40, 40, 60), font=title_font, anchor="lm")
 
     gender_km = {"M": "ប្រុស", "F": "ស្រី"}[identity.gender]
+    to_khmer = str.maketrans("0123456789", "០១២៣៤៥៦៧៨៩")
+    # field: (value, printed label left of the box or None, font, size as share of card height)
     lines = {
-        "id_number": (identity.id_number, latin_font),
-        "full_name_km": (f"គោត្តនាមនិងនាម: {identity.full_name_km}", khmer_font),
-        "full_name_latin": (identity.full_name_latin, latin_font),
-        "date_of_birth": (f"ថ្ងៃខែឆ្នាំកំណើត: {identity.date_of_birth}", khmer_font),
-        "gender": (f"ភេទ: {gender_km}", khmer_font),
+        "id_number": (identity.id_number, None, latin_path, 0.055),
+        "full_name_km": (identity.full_name_km, "គោត្តនាមនិងនាម:", khmer_path, 0.05),
+        "full_name_latin": (identity.full_name_latin, None, latin_path, 0.04),
+        "date_of_birth": (identity.date_of_birth.translate(to_khmer), "ថ្ងៃខែឆ្នាំកំណើត:",
+                          khmer_path, 0.042),
+        # The gender box includes its label.
+        "gender": (f"ភេទ: {gender_km}", None, khmer_path, 0.042),
     }
+    ink = (20, 20, 30)
     for spec in template.fields:
         if spec.name not in lines:
             continue
-        text, font = lines[spec.name]
+        value, label, path, size = lines[spec.name]
+        font = _font(path, int(height * size))
         x, y, _, h = spec.box
-        draw.text((int((x + 0.01) * width), int((y + h / 2) * height)), text,
-                  fill=(20, 20, 30), font=font, anchor="lm")
+        middle = int((y + h / 2) * height)
+        draw.text((int((x + 0.006) * width), middle), value, fill=ink, font=font, anchor="lm")
+        if label:
+            draw.text((int((x - 0.006) * width), middle), label, fill=ink, font=font, anchor="rm")
+        if spec.name == "gender":
+            # Height follows sex on the same line, as on the card.
+            draw.text((int((x + spec.box[2] + 0.015) * width), middle), "កំពស់: ១៦៥ ស.ម",
+                      fill=ink, font=font, anchor="lm")
     return np.asarray(card, dtype=np.uint8).copy()
 
 

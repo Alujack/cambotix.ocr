@@ -28,20 +28,23 @@ from khmerocr import KhmerOCR, KhmerOCRError  # noqa: E402
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser = argparse.ArgumentParser(description=__doc__,
+                                     formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--model", required=True, help="Model bundle folder or installed model ID.")
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--count", type=int, default=120)
     args = parser.parse_args()
 
-    subprocess.run([sys.executable, str(ROOT / "benchmarks" / "generate_synthetic.py"),
+    # Runs this repository's own generator with the current interpreter.
+    subprocess.run([sys.executable, str(ROOT / "benchmarks" / "generate_synthetic.py"),  # noqa: S603
                     "--out", str(args.out), "--count", str(args.count)], check=True)
     engine = KhmerOCR.from_pretrained(args.model)
     results = {}
     for line in (args.out / "labels.jsonl").read_text(encoding="utf-8").splitlines():
         image = json.loads(line)["image"]
         try:
-            results[image] = engine.extract_id(str(args.out / image)).to_dict(include_text_regions=True)
+            result = engine.extract_id(str(args.out / image))
+            results[image] = result.to_dict(include_text_regions=True)
         except KhmerOCRError as exc:
             results[image] = {"error": exc.code.value}
     (args.out / "python.json").write_text(json.dumps(results, ensure_ascii=False), encoding="utf-8")

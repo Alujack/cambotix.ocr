@@ -19,12 +19,11 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(ROOT / "packages" / "core-python" / "src"))
 
+from khmerocr.config import QualityThresholds  # noqa: E402
 from khmerocr.preprocessing.geometry import detect_card_quad, normalize_card  # noqa: E402
 from khmerocr.preprocessing.quality import assess_quality  # noqa: E402
-from khmerocr.config import QualityThresholds  # noqa: E402
 from khmerocr.recognition.onnx_ctc import trim_to_ink  # noqa: E402
-from khmerocr.testing.synthetic import (  # noqa: E402
-    SyntheticIdentity, add_glare, render_card)
+from khmerocr.testing.synthetic import SyntheticIdentity, add_glare, render_card  # noqa: E402
 
 OUT = Path(__file__).with_name("opencv.json")
 
@@ -52,7 +51,8 @@ def photograph(card: np.ndarray) -> np.ndarray:
 
 def enc(a: np.ndarray) -> dict:
     a = np.ascontiguousarray(a)
-    return {"shape": list(a.shape), "dtype": str(a.dtype), "b64": base64.b64encode(a.tobytes()).decode()}
+    return {"shape": list(a.shape), "dtype": str(a.dtype),
+            "b64": base64.b64encode(a.tobytes()).decode()}
 
 
 def main() -> None:
@@ -66,10 +66,11 @@ def main() -> None:
     closed = cv2.morphologyEx(dil, cv2.MORPH_CLOSE, np.ones((7, 7), np.uint8))
     contours, _ = cv2.findContours(otsu, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     contour_areas = sorted((float(cv2.contourArea(c)) for c in contours), reverse=True)
-    inv_contours, _ = cv2.findContours(cv2.bitwise_not(otsu), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    inv_contours, _ = cv2.findContours(cv2.bitwise_not(otsu), cv2.RETR_EXTERNAL,
+                                       cv2.CHAIN_APPROX_SIMPLE)
     inv_areas = sorted((float(cv2.contourArea(c)) for c in inv_contours), reverse=True)
     sat = (gray >= 200).astype(np.uint8)
-    n, _, stats, _ = cv2.connectedComponentsWithStats(sat, connectivity=8)
+    _, _, stats, _ = cv2.connectedComponentsWithStats(sat, connectivity=8)
     comp = sorted([[int(v) for v in s] for s in stats[1:]])
 
     src = np.array([[0, 0], [179, 0], [179, 119], [0, 119]], np.float32)

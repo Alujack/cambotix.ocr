@@ -59,6 +59,8 @@ FIRST_TELEMETRY_ORT_VERSION = (1, 29)
 _SPACE_GAP_RATIO = 0.22
 _CROP_MARGIN_Y = 4
 _CROP_MARGIN_X = 6
+# Edge specks with less than this share of a crop's ink can be trimmed off.
+_SPECK_INK_RATIO = 0.05
 
 _COENG = "្"
 _KHMER_CONSONANTS = range(0x1780, 0x17A3)  # ក .. អ
@@ -250,18 +252,45 @@ def khmer_structure_valid(text: str) -> bool:
 def trim_to_ink(gray: NDArray[np.uint8]) -> NDArray[np.uint8] | None:
     """Crop a field region to its text, assuming dark text on a light background.
 
+    Specks at the left or right edge, such as a vowel mark from a neighbouring
+    line, are left out when a blank gap of at least one line height separates
+    them from the text: the recognizer would otherwise read the gap as letters.
+
     Returns ``None`` when the region contains no ink at all.
     """
     if gray.size == 0 or gray.std() < 8:
         return None
     _, ink = cv2.threshold(gray, 0, 1, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
-    rows = np.flatnonzero(ink.sum(axis=1) >= max(1, gray.shape[1] // 200))
-    cols = np.flatnonzero(ink.sum(axis=0) >= 1)
+    min_row_ink = max(1, gray.shape[1] // 200)
+    rows = np.flatnonzero(ink.sum(axis=1) >= min_row_ink)
+    column_ink = ink.sum(axis=0)
+    cols = np.flatnonzero(column_ink >= 1)
     if rows.size == 0 or cols.size == 0:
+        return None
+    cols = _drop_edge_specks(cols, column_ink, line_height=int(rows[-1] - rows[0] + 1))
+    rows = np.flatnonzero(ink[:, cols[0]:cols[-1] + 1].sum(axis=1) >= min_row_ink)
+    if rows.size == 0:
         return None
     y0, y1 = max(0, rows[0] - _CROP_MARGIN_Y), min(gray.shape[0], rows[-1] + _CROP_MARGIN_Y + 1)
     x0, x1 = max(0, cols[0] - _CROP_MARGIN_X), min(gray.shape[1], cols[-1] + _CROP_MARGIN_X + 1)
     return np.ascontiguousarray(gray[y0:y1, x0:x1])
+
+
+def _drop_edge_specks(cols: NDArray[Any], column_ink: NDArray[Any],
+                      line_height: int) -> NDArray[Any]:
+    """Drop edge clusters of ink columns that hold under 5% of the ink and are
+    separated from the rest by a blank gap of at least ``line_height``."""
+    breaks = np.flatnonzero(np.diff(cols) - 1 >= max(2, line_height)) + 1
+    clusters = np.split(cols, breaks)
+    total = float(sum(column_ink[c].sum() for c in clusters))
+    while len(clusters) > 1:
+        if column_ink[clusters[-1]].sum() < _SPECK_INK_RATIO * total:
+            clusters.pop()
+        elif column_ink[clusters[0]].sum() < _SPECK_INK_RATIO * total:
+            clusters.pop(0)
+        else:
+            break
+    return np.concatenate(clusters)
 
 
 def insert_word_spaces(chars: list[str], steps: list[int], line: NDArray[np.uint8],

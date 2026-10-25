@@ -147,7 +147,8 @@ describe("fallback recognizer", () => {
     const result = await extract(router, photo, national(), config);
     expect(result.fields["full_name_km"]!.value).toBe("គំរូ សាកល្បង");
     expect(second.calls).not.toContain("full_name_km");
-    expect(primary.calls).toEqual(["full_name_km"]);
+    // Only Khmer-script regions go to the Khmer model.
+    expect(primary.calls).toEqual(national().fields.filter((f) => f.script === "khmer").map((f) => f.name));
     expect(result.warnings).not.toContain("fallback_recognizer:full_name_km");
   });
 

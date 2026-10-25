@@ -200,8 +200,12 @@ def test_real_khmer_model_reads_synthetic_name() -> None:
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     rec = OnnxCtcRecognizer(model_path=Path(REC), tokens=module.SEANGHAY_TOKENS)
+    from khmerocr.documents import template_for_document
+
     card = render_card()
-    crop = card[int(0.31 * 638):int(0.43 * 638), int(0.33 * 1012):]
+    box = next(f.box for f in template_for_document("khmer_national_id").fields
+               if f.name == "full_name_km")
+    crop = card[int(box[1] * 638):int((box[1] + box[3]) * 638), int(box[0] * 1012):]
     text = strip_labels(rec.recognize_line(crop).text, ["គោត្តនាមនិងនាម"])
     assert text == "គំរូ សាកល្បង", json.dumps(text, ensure_ascii=False)
 
@@ -240,7 +244,11 @@ def test_fallback_is_not_called_when_primary_read_validates() -> None:
     result = engine.extract_id(place_on_background(render_card()))
     assert result.fields["full_name_km"].value == "គំរូ សាកល្បង"
     assert "full_name_km" not in fallback.calls  # lazily skipped
-    assert khmer.calls == ["full_name_km"]
+    from khmerocr.documents import template_for_document
+
+    khmer_fields = [f.name for f in template_for_document("khmer_national_id").fields
+                    if f.script == "khmer"]
+    assert khmer.calls == khmer_fields  # only Khmer-script regions go to the Khmer model
     assert "fallback_recognizer:full_name_km" not in result.warnings
 
 
