@@ -8,7 +8,13 @@
 #     -v ~/.khmerocr/models:/models:ro \
 #     -e KHMEROCR_MODEL=khmerocr-id-v1 khmerocr-api
 #
-# Publish the port on 127.0.0.1 only: the API has no authentication.
+# Publish the port on 127.0.0.1 only, unless KHMEROCR_API_KEY is set and the
+# port sits behind TLS (see docs/api-reference.md, "Access from apps and
+# browsers"):
+#
+#   docker run --rm -p 8000:8000 -v ~/.khmerocr/models:/models:ro \
+#     -e KHMEROCR_API_KEY=... -e KHMEROCR_CORS_ORIGINS=https://app.example.com \
+#     khmerocr-api
 
 FROM python:3.12-slim AS runtime
 

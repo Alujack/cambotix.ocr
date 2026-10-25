@@ -81,6 +81,8 @@ Local API:
 
 ```bash
 khmerocr serve --host 127.0.0.1 --port 8000 --model khmerocr-id-v1
+# reachable from phones/other machines: set a key and serve over TLS
+KHMEROCR_API_KEY=... khmerocr serve --host 0.0.0.0 --port 8000 --model khmerocr-id-v1
 ```
 
 ## 5. Docker (local API)

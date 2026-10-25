@@ -28,6 +28,10 @@ dependency, no API fees, and no document data leaves the machine.
 - **Local REST API** (`khmerocr serve`) implementing a versioned `/v1`
   contract with JSON Schemas, so a future hosted API can serve the same
   clients.
+- **App clients** for that API: [TypeScript](packages/sdk-typescript)
+  (Node.js and browsers) and [Dart/Flutter](packages/sdk-flutter) (Android,
+  iOS, web, desktop), with a Flutter camera scanner example. Recognition runs
+  on the server; the apps send the photo and get typed fields back.
 
 ```python
 from pathlib import Path
@@ -72,7 +76,8 @@ packages/core-python/   khmerocr: engine (no FastAPI/DB/cloud dependencies)
     adapters/cli.py     `khmerocr` command
     testing/            scripted recognizer + synthetic SPECIMEN cards
 packages/api/           khmerocr-api: thin FastAPI layer (/v1)
-packages/sdk-typescript, packages/sdk-flutter   later milestones (not published)
+packages/sdk-typescript/  @khmerocr/client: TypeScript client for /v1 (not published)
+packages/sdk-flutter/     khmerocr: Dart/Flutter client + camera scanner example (not published)
 schemas/                JSON Schemas for non-Python consumers
 models/                 release registry (manifest.json); weights are not stored here
 benchmarks/             field-level evaluation + synthetic data generator
