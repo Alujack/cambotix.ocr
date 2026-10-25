@@ -1,0 +1,56 @@
+name: Publish @khmerocr/local
+
+# Publishes packages/sdk-local to npm through trusted publishing (no npm token
+# is stored anywhere). Start it from GitHub: Actions -> Publish @khmerocr/local
+# -> Run workflow. With "stage" (the default) the version waits on npmjs.com
+# until a maintainer approves it with 2FA.
+#
+# One-time setup on npmjs.com: @khmerocr/local -> Settings -> Trusted
+# publishing -> GitHub Actions, repository Alujack/cambotix.ocr, workflow
+# publish-npm-local.yml.
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "stage: wait for approval on npmjs.com; publish: release at once"
+        type: choice
+        options: [stage, publish]
+        default: stage
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    defaults:
+      run:
+        working-directory: packages/sdk-local
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+          cache: npm
+          cache-dependency-path: packages/sdk-local/package-lock.json
+      # Trusted publishing needs npm 11.5.1+, staged publishing 11.15.0+.
+      - run: npm install -g npm@11.15.0
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - name: Version is not on npm yet
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if npm view "@khmerocr/local@$version" version >/dev/null 2>&1; then
+            echo "@khmerocr/local@$version is already on npm; raise the version in package.json first."
+            exit 1
+          fi
+          echo "Publishing @khmerocr/local@$version"
+      - name: Stage for approval
+        if: inputs.mode == 'stage'
+        run: npm stage publish .
+      - name: Publish
+        if: inputs.mode == 'publish'
+        run: npm publish

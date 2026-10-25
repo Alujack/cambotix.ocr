@@ -221,3 +221,10 @@ KHMEROCR_PARITY_DIR=/tmp/parity KHMEROCR_TEST_BUNDLE=path/to/khmerocr-id-v1 npm 
 
 After changing a template in `packages/core-python`, run
 `node scripts/sync-templates.mjs`.
+
+## Releasing
+
+Raise `version` in `package.json` and `src/version.ts`, add a CHANGELOG
+entry, and push. Then on GitHub run **Actions → Publish @khmerocr/local → Run
+workflow** and approve the staged version on npmjs.com. The workflow
+publishes through npm trusted publishing, so no npm token is stored.
