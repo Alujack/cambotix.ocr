@@ -1,0 +1,25 @@
+name: Feature or new card type
+description: Suggest an improvement, or support for another document layout.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For a new card type, describe the layout in words (fields, their order, languages, where the photo is) or attach a redrawn mock-up. **Do not attach photos of real cards.**
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: What should happen, and for a card type, which fields it has.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered

@@ -59,7 +59,7 @@ python scripts/build_bundle.py --model-id khmerocr-id-hybrid \
 ```
 
 Khmer-script regions go to `rec.onnx`, with Tesseract as the fallback; all
-other regions go to Tesseract. Requires `khmerocr[tesseract,onnx]`.
+other regions go to Tesseract. Requires `cambotix-ocr[tesseract,onnx]`.
 
 ## Adding another recognizer (e.g. Netra-OCR, PaddleOCR)
 

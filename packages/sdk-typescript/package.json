@@ -3,6 +3,18 @@
   "version": "0.1.0",
   "description": "TypeScript client for the KhmerOCR REST API: Cambodian ID card extraction and Khmer/English OCR.",
   "license": "Apache-2.0",
+  "author": "Yoeurn Yan",
+  "homepage": "https://github.com/Alujack/cambotix.ocr/tree/master/packages/sdk-typescript#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Alujack/cambotix.ocr.git",
+    "directory": "packages/sdk-typescript"
+  },
+  "bugs": "https://github.com/Alujack/cambotix.ocr/issues",
+  "keywords": ["ocr", "khmer", "cambodia", "id-card", "kyc", "khmerocr"],
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "module",
   "sideEffects": false,
   "engines": {
@@ -24,7 +36,9 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "src",
+    "CHANGELOG.md"
   ],
   "scripts": {
     "build": "node scripts/clean.mjs && tsc -p tsconfig.esm.json && tsc -p tsconfig.cjs.json && node scripts/write-cjs-package.mjs",

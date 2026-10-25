@@ -13,13 +13,13 @@ package = false
 members = ["packages/core-python", "packages/api"]
 
 [tool.uv.sources]
-khmerocr = { workspace = true }
-khmerocr-api = { workspace = true }
+cambotix-ocr = { workspace = true }
+cambotix-ocr-api = { workspace = true }
 
 [dependency-groups]
 dev = [
-    "khmerocr[tesseract,onnx,validation]",
-    "khmerocr-api",
+    "cambotix-ocr[tesseract,onnx,validation]",
+    "cambotix-ocr-api",
     "pytest>=8",
     "hypothesis>=6.100",
     "jsonschema>=4.22",

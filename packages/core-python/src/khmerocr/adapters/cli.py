@@ -78,7 +78,7 @@ def _build_parser() -> argparse.ArgumentParser:
             p.add_argument("--include-text-regions", action="store_true")
         p.set_defaults(handler=handler)
 
-    p = sub.add_parser("serve", help="Run the local REST API (requires khmerocr-api).")
+    p = sub.add_parser("serve", help="Run the local REST API (requires cambotix-ocr-api).")
     p.add_argument("--host", default="127.0.0.1")
     p.add_argument("--port", type=int, default=8000)
     p.add_argument("--model", default=_default_model())
@@ -141,7 +141,7 @@ def _serve(args: argparse.Namespace) -> None:
         import khmerocr_api  # noqa: F401
         import uvicorn
     except ImportError:
-        print("The REST API is not installed: pip install khmerocr-api", file=sys.stderr)
+        print("The REST API is not installed: pip install cambotix-ocr-api", file=sys.stderr)
         raise SystemExit(1) from None
     # Engine logs carry codes, counts and timings only, never document content.
     logging.basicConfig(level=logging.WARNING, format="%(levelname)s:     %(name)s: %(message)s")

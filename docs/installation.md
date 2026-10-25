@@ -11,8 +11,8 @@ Requires Python 3.10+.
 python -m venv .venv
 source .venv/bin/activate
 
-pip install "khmerocr[tesseract,onnx]"   # core engine + Tesseract + ONNX backends
-pip install khmerocr-api            # optional: local REST API
+pip install "cambotix-ocr[tesseract,onnx]"   # core engine + Tesseract + ONNX backends
+pip install cambotix-ocr-api            # optional: local REST API
 ```
 
 Until packages are published, install from a checkout:

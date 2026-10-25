@@ -126,7 +126,8 @@ def main() -> int:
         }}
         recognition_model = (f"hybrid: onnx-ctc ({args.onnx_scripts}) "
                              "+ tesseract-tessdata_fast")
-        license_expr = f"Apache-2.0 AND {args.khmer_onnx_license}"
+        license_expr = ("Apache-2.0" if args.khmer_onnx_license == "Apache-2.0"
+                        else f"Apache-2.0 AND {args.khmer_onnx_license}")
     else:
         recognizer = tesseract
         recognition_model = "tesseract-tessdata_fast"

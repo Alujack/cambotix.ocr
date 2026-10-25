@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [master]
   pull_request:
 
 jobs:
@@ -47,6 +47,78 @@ jobs:
       - run: pip install "packages/core-python[validation]" pytest hypothesis
       - run: python -c "import khmerocr, sys; assert 'fastapi' not in sys.modules"
       - run: pytest packages/core-python/tests -p no:cacheprovider
+
+  python-dist:
+    # What PyPI would receive: metadata, README rendering, license files.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install build twine
+      - run: |
+          python -m build packages/core-python --outdir dist
+          python -m build packages/api --outdir dist
+      - run: twine check --strict dist/*
+      - name: Wheels carry the license
+        run: |
+          for wheel in dist/*.whl; do
+            unzip -l "$wheel" | grep -q "licenses/LICENSE" || { echo "no LICENSE in $wheel"; exit 1; }
+          done
+
+  sdk-typescript:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/sdk-typescript
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: packages/sdk-typescript/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run build
+      - run: npm test
+      - run: npm publish --dry-run
+      # The package supports Node 18; the test runner itself needs Node 22.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 18
+      - name: Built package loads on Node 18 (CJS and ESM)
+        run: |
+          node -e "const m = require('./dist/cjs/index.js'); if (!m.KhmerOCRClient) process.exit(1)"
+          node --input-type=module -e "const m = await import('./dist/esm/index.js'); if (!m.KhmerOCRClient) process.exit(1)"
+
+  sdk-dart:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/sdk-flutter
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+      - run: dart pub get
+      - run: dart format --output=none --set-exit-if-changed .
+      - run: dart analyze --fatal-infos
+      - run: dart test
+
+  flutter-example:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/sdk-flutter/example/flutter_scanner
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test
 
   tesseract-offline:
     # Real Tesseract inference inside the Docker image with networking disabled.

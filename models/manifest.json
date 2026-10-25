@@ -5,12 +5,21 @@
       "model_id": "khmerocr-id-v1",
       "task": "khmer_id_extraction",
       "runtime": "local",
-      "recognition_model": "selected-after-benchmark",
-      "weights_sha256": "record-during-release",
-      "license": "verified-license-required",
+      "recognition_model": "hybrid: onnx-ctc (khmer,latin,digits,mixed) + tesseract-tessdata_fast",
+      "weights_sha256": "dfdecda25aa5337c359d1221aaa67a1fa597d05a4db39fdb26aed655c55216ff",
+      "license": "Apache-2.0",
+      "license_components": [
+        {"name": "tesseract traineddata (tessdata_fast 4.1.0)", "license": "Apache-2.0",
+         "url": "https://github.com/tesseract-ocr/tessdata_fast/tree/4.1.0"},
+        {"name": "Khmer ONNX CTC recognizer (training run poc, step 23000)", "license": "Apache-2.0",
+         "url": "https://github.com/Alujack/cambotix.ocr/tree/master/training",
+         "notes": "Trained on OFL-1.1 fonts (google/fonts e7db6ca) and CC BY-SA 4.0 Khmer Wikipedia text rendered into images; see docs/model-card.md."}
+      ],
       "license_approved": false,
-      "model_version": "1.0.0",
-      "schema_version": "1.0"
+      "model_version": "0.1.0",
+      "schema_version": "1.0",
+      "status": "experimental",
+      "model_card": "docs/model-card.md"
     }
   ]
 }

@@ -2,7 +2,7 @@
 
 Runs CRNN-style line recognizers exported to ONNX (for example the Khmer
 recognizer from github.com/seanghay/KhmerOCR) with ONNX Runtime
-(``pip install "khmerocr[onnx]"``). Expected model contract:
+(``pip install "cambotix-ocr[onnx]"``). Expected model contract:
 
 * input ``[batch, 1, height, width]`` float32 grayscale in ``[0, 1]``, where
   ``height`` is fixed (32 for seanghay/KhmerOCR) and ``width`` is dynamic;
@@ -87,7 +87,7 @@ class OnnxCtcRecognizer(Recognizer):
             except ImportError as exc:
                 raise ModelNotAvailableError(
                     "The onnx-ctc backend requires the 'onnxruntime' package: "
-                    "pip install 'khmerocr[onnx]'."
+                    "pip install 'cambotix-ocr[onnx]'."
                 ) from exc
             check_onnxruntime_version(ort.__version__)
             ort.disable_telemetry_events()

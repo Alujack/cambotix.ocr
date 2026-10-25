@@ -15,7 +15,7 @@ these Python dependencies.
 | onnxruntime (extra `onnx`) | MIT | Pinned `<1.29`: later builds include Microsoft 1DS telemetry (see docs/privacy.md). |
 | jsonschema (extra `validation`) | MIT | |
 
-## Runtime dependencies: `khmerocr-api`
+## Runtime dependencies: `cambotix-ocr-api`
 
 | Package | License |
 | --- | --- |
